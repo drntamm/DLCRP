@@ -123,6 +123,9 @@ table{border-collapse:collapse;width:100%;font-size:11px}
 th{background:var(--cr);color:#fff;text-align:left;padding:6px 8px;white-space:nowrap}
 td{padding:5px 8px;border-top:1px solid var(--border);vertical-align:top}
 tr.exists td{background:var(--bg2);color:var(--txt2)}
+tr.chg td{background:#FFF8E1}tr.chg td:first-child{box-shadow:inset 3px 0 0 var(--go)}
+td select{font-size:11px;padding:3px 6px;max-width:170px}
+.ruledesc{font-size:11px;color:var(--txt2);margin-top:8px;line-height:1.5}
 td.w{color:var(--nm-tx)}
 /* modal + toast */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
@@ -151,7 +154,7 @@ td.w{color:var(--nm-tx)}
    deployment between the quotes. Courses, reviewers, PINs, the rubric and the
    term all live in the Google Sheet, so this file never changes between terms.
    ════════════════════════════════════════════════════════════════════════════ */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxb376dDWsX2WjVblGKXwIWD0YRIAWzOZWDc3AJ_AjCGEwpSUHeCQ67GwMxn33_KKaM/exec';
+const SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const $ = s => document.querySelector(s);
@@ -178,7 +181,15 @@ function stageOf(c) { if (submitted(c)) return c.Stage || 'Action Required'; ret
 const remOf = c => S.rem[c['Course ID']] || [];
 const openItems = c => remOf(c).filter(m => m.Status !== 'Completed');
 const overdue = c => submitted(c) && stageOf(c) !== 'Certified' ? openItems(c).filter(m => m['Due Date'] && m['Due Date'] < today()) : [];
-const priLabel = p => p === 'P1' ? 'P1 New' : p === 'P3' ? 'P3 Recently certified' : 'P2 Previously certified';
+const priLabel = p => ({ P1: 'P1 — review first', P2: 'P2', P3: 'P3 — review last' })[p] || p;
+// Priority rule: brand-new courses first, then previously reviewed Term 1 courses, then previously reviewed Term 2 courses.
+// P numbers follow that order among the groups present, so with no new courses Term 1 is P1.
+const isNewCourse = c => /\bnew\b/i.test(c['Course Status'] || '');
+const priTier = c => isNewCourse(c) ? 0 : (!c.Session || /term\s*1\b/i.test(c.Session)) ? 1 : 2;
+const priReason = c => isNewCourse(c) ? 'New course' : 'Previously reviewed, ' + (c.Session || 'full term');
+function rulePriorities(list) { const present = [0, 1, 2].filter(t => list.some(c => priTier(c) === t)); return list.map(c => 'P' + (present.indexOf(priTier(c)) + 1)); }
+const PRI_RULE_TEXT = 'New courses first, then previously reviewed Term 1 courses, then previously reviewed Term 2 courses. The numbers follow that order among the groups present, so with no new courses Term 1 is P1. Courses with no session are treated as starting with Term 1. A course is new when its course status says "New".';
+const priOptions = sel => ['P1', 'P2', 'P3'].map(p => `<option${sel === p ? ' selected' : ''}>${p}</option>`).join('');
 
 // ── server calls ─────────────────────────────────────────────────────────────
 async function api(action, payload = {}) {
@@ -328,12 +339,14 @@ function renderDash() {
     ? `<select data-ch="term" aria-label="Term">${S.terms.map(t => `<option${t === S.term ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`
     : `<b>${esc(S.term)}</b>`;
   let h = sbar(`${termSel} ${saveChip()}
-    ${sup ? `<button class="btn p sm" data-act="import">Import courses</button><button class="btn sm" data-act="settings">Settings</button>` : ''}
+    ${sup ? `<button class="btn p sm" data-act="import">Import courses</button><button class="btn sm" data-act="assign" ${all.length ? '' : 'disabled'}>Assignments &amp; priority</button><button class="btn sm" data-act="settings">Settings</button>` : ''}
     <button class="btn sm" data-act="exportXlsx" ${all.length ? '' : 'disabled'}>Export Excel</button>
     <button class="btn sm" data-act="exportAllPdf" ${all.some(submitted) ? '' : 'disabled'}>Export PDFs</button>
     <button class="btn sm" data-act="refresh">Refresh</button><button class="btn sm" data-act="signOut">Sign out</button>`);
 
   const noPin = S.reviewers.filter(r => r.active && !r.hasPin);
+  const unassigned = all.filter(c => !c.Reviewer).length;
+  if (sup && unassigned) h += `<div class="pad" style="padding-bottom:0"><div class="note info" style="margin-top:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap">${unassigned} course${unassigned > 1 ? 's have' : ' has'} no reviewer. <button class="btn p sm" data-act="assign">Assign reviewers</button></div></div>`;
   if (sup && noPin.length) h += `<div class="pad" style="padding-bottom:0"><div class="note err" style="margin-top:0">No PIN is set for ${noPin.map(r => esc(r.name)).join(', ')}. Type a 4-digit PIN in the Reviewers tab of the Sheet; until then they cannot sign in.</div></div>`;
   const due = S.settings['Review Due Date'];
   if (due && byStage['Assigned'] + byStage['In Review'] > 0) h += `<div class="pad" style="padding-bottom:0"><div class="note ${due < today() ? 'err' : 'info'}" style="margin-top:0">Reviews are due <b>${esc(due)}</b>. ${byStage['Assigned'] + byStage['In Review']} still to be submitted.</div></div>`;
@@ -395,7 +408,7 @@ function renderReview() {
       ${pos > 0 ? `<button class="btn sm" data-act="open" data-id="${esc(list[pos - 1]['Course ID'])}">← Prev</button>` : ''}
       ${pos >= 0 && pos < list.length - 1 ? `<button class="btn sm" data-act="open" data-id="${esc(list[pos + 1]['Course ID'])}">Next →</button>` : ''}</div></div>
   <div class="pills"><span class="stg s${si}">${esc(st)}</span>
-    ${[c.Program, c.College, c.Credits, c.Session, c['Course Status'], priLabel(c.Priority), c.Reviewer ? 'Reviewer: ' + c.Reviewer : 'Unassigned'].filter(Boolean).map(x => `<span class="pill">${esc(x)}</span>`).join('')}
+    ${[c.Program, c.College, c.Credits, c.Session, c['Course Status'], 'Priority ' + (c.Priority || 'P2') + ' · ' + priReason(c), c.Reviewer ? 'Reviewer: ' + c.Reviewer : 'Unassigned'].filter(Boolean).map(x => `<span class="pill">${esc(x)}</span>`).join('')}
     ${c.Flag ? '<span class="pill warn">⚑ Flagged for follow-up</span>' : ''}${c.Override ? `<span class="pill warn">Supervisor override: ${esc(c.Override)}</span>` : ''}
     ${c['Pre-Flags'] ? `<span class="pill warn">Instructor self-report — not confirmed: ${esc(c['Pre-Flags'])}</span>` : ''}</div>`;
 
@@ -513,21 +526,41 @@ const ACT = {
   remove: async () => { const c = cur(); if (!confirm(`Remove ${c['Course Number']} from ${S.term}?`)) return; await api('deleteCourse', { courseId: S.cur }); S.courses = S.courses.filter(x => x !== c); renderDash(); toast('Course removed.'); },
   pdf: () => exportPdf([cur()]), exportAllPdf: () => exportPdf(visibleCourses().filter(submitted)), exportXlsx: () => exportXlsx(),
   import: () => renderImport(), imCancel: () => renderDash(), imRun: () => runImport(), imTemplate: () => downloadTemplate(),
+  assign: () => renderAssign(), asBack: () => { if (asChanged().length && !confirm('Discard the unsaved assignment changes?')) return; renderDash(); },
+  asPropose: () => asPropose(), asReset: () => { AS.rows.forEach(r => { r.Reviewer = r.cur; r.Priority = r.curPri; r.autoNote = ''; }); drawAssign(); },
+  asPriRule: () => asPriRule(), asBulkPri: () => asBulkPri(),
+  asBulk: () => asBulk(), asSelScope: () => { AS.sel = new Set(AS.rows.map((r, i) => i).filter(i => asInScope(AS.rows[i]))); drawAsTable(); refreshAs(); },
+  asSelNone: () => { AS.sel.clear(); drawAsTable(); refreshAs(); }, asSave: () => asSave(),
   settings: () => showSettings(), stClose: () => { $('#modal').innerHTML = ''; }, stSave: () => saveSettings()
 };
 const CH = {
   rate: el => { const c = cur(); item(c, el.dataset.item).rating = el.value; OB.put(S.cur, el.dataset.item); updateItemDom(c, el.dataset.item); if ($('#val').style.display !== 'none') $('#val').style.display = 'none'; },
   term: async el => { await OB.flush(); S.f = { stage: '', reviewer: '', program: '', q: '' }; await load(el.value); },
   fProgram: el => { S.f.program = el.value; renderDash(); },
-  spField: async el => { const c = cur(), k = el.dataset.k; if (k === 'Reviewer' && submitted(c) && !confirm('This review is already submitted. Reassign it anyway? The new reviewer will take over the follow-up.')) { el.value = c.Reviewer; return; } await act('updateCourse', { fields: { [k]: el.value } }); toast('Updated.'); },
+  spField: async el => {
+    const c = cur(), k = el.dataset.k;
+    if (k === 'Reviewer') {
+      const rv = S.reviewers.find(r => r.name === el.value);
+      if (ownCourse(rv, c.Instructor) && !confirm(`${rv.name} teaches this course. Assign it to them anyway?`)) { el.value = c.Reviewer || ''; return; }
+      if (submitted(c) && !confirm('This review is already submitted. Reassign it anyway? The new reviewer will take over the follow-up.')) { el.value = c.Reviewer || ''; return; }
+    }
+    await act('updateCourse', { fields: { [k]: el.value } }); toast(k === 'Reviewer' ? (el.value ? 'Reassigned to ' + el.value + '.' : 'Reviewer removed.') : 'Updated.');
+  },
   imFile: el => readImportFile(el.files[0]), imSheet: el => { IM.sheet = el.value; loadSheet(); }, imMap: el => { IM.map[el.dataset.k] = el.value; buildItems(); renderImportBody(); },
-  imMode: el => { IM.mode = el.value; assignAll(); renderImportBody(); }, imRev: el => { IM.items[+el.dataset.i].Reviewer = el.value; IM.items[+el.dataset.i].manual = true; }
+  imMode: el => { IM.mode = el.value; assignAll(); renderImportBody(); },
+  imPri: el => { IM.items[+el.dataset.i].Priority = el.value; }, imRepri: el => { IM.repri = el.checked; renderImportBody(); },
+  asMode: el => { AS.mode = el.value; $('#as-desc').textContent = RULE_DESC[AS.mode]; }, asScope: el => { AS.scope = el.value; },
+  asRev: el => { const i = +el.dataset.i; AS.rows[i].Reviewer = el.value; AS.rows[i].autoNote = ''; updateAsRow(i); refreshAs(); },
+  asPri: el => { const i = +el.dataset.i; AS.rows[i].Priority = el.value; updateAsRow(i); refreshAs(); },
+  asSel: el => { const i = +el.dataset.i; if (el.checked) AS.sel.add(i); else AS.sel.delete(i); refreshAs(); },
+  asSelAll: el => { asVisible().forEach(([, i]) => el.checked ? AS.sel.add(i) : AS.sel.delete(i)); drawAsTable(); refreshAs(); }, imRev: el => { IM.items[+el.dataset.i].Reviewer = el.value; IM.items[+el.dataset.i].manual = true; }
 };
 const IN = {
   fb: el => { item(cur(), el.dataset.item).feedback = el.value; OB.put(S.cur, el.dataset.item); },
   sylTerm: el => { item(cur(), el.dataset.item).sylTerm = el.value; OB.put(S.cur, el.dataset.item); },
   sylDate: el => { item(cur(), el.dataset.item).sylDate = el.value; OB.put(S.cur, el.dataset.item); },
-  fq: el => { S.f.q = el.value; renderGrid(); }
+  fq: el => { S.f.q = el.value; renderGrid(); },
+  asQ: el => { AS.q = el.value; drawAsTable(); }
 };
 async function run(fn, el) {
   const btn = el && el.tagName === 'BUTTON' ? el : null; if (btn) btn.disabled = true;
@@ -537,6 +570,146 @@ async function run(fn, el) {
 document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (el && !el.disabled && ACT[el.dataset.act]) run(ACT[el.dataset.act], el); });
 document.addEventListener('change', e => { const el = e.target.closest('[data-ch]'); if (el && CH[el.dataset.ch]) run(CH[el.dataset.ch], el); });
 document.addEventListener('input', e => { const el = e.target.closest('[data-in]'); if (el && IN[el.dataset.in]) IN[el.dataset.in](el); });
+
+// ── assign reviewers (supervisor): automatic proposal, bulk moves, row-by-row changes ──
+const SCOPES = [['unassigned', 'Unassigned courses only'], ['unstarted', 'Courses not yet started'], ['unsubmitted', 'All courses not yet submitted']];
+const AS = { rows: [], mode: 'mixed', scope: 'unstarted', sel: new Set(), q: '' };
+const revChanged = r => r.Reviewer !== r.cur, priChanged = r => r.Priority !== r.curPri;
+const asChanged = () => AS.rows.filter(r => revChanged(r) || priChanged(r));
+function asInScope(r) { return AS.scope === 'unassigned' ? !r.cur : AS.scope === 'unstarted' ? stageOf(r.c) === 'Assigned' : !submitted(r.c); }
+function asVisible() {
+  const q = AS.q.trim().toLowerCase();
+  return AS.rows.map((r, i) => [r, i]).filter(([r]) => !q || [r.c['Course Number'], r.c['Course Title'], r.Instructor, r.Program, r.cur].join(' ').toLowerCase().includes(q));
+}
+function asNotes(r) {
+  const n = [];
+  if (priChanged(r)) n.push('Priority ' + r.curPri + ' → ' + r.Priority);
+  if (revChanged(r)) {
+    if (submitted(r.c)) n.push('Review submitted — the new reviewer takes over the follow-up');
+    else if (stageOf(r.c) === 'In Review') n.push('Ratings entered so far stay with the course');
+  }
+  if (ownCourse(S.reviewers.find(x => x.name === r.Reviewer), r.Instructor)) n.push(r.Reviewer + ' teaches this course');
+  if (r.autoNote) n.push(r.autoNote);
+  return n.join('; ');
+}
+function renderAssign() {
+  S.view = 'assign';
+  const order = S.courses.slice().sort((a, b) => (a.Priority || 'P2').localeCompare(b.Priority || 'P2') || a['Course Number'].localeCompare(b['Course Number']) || (a.Session || '').localeCompare(b.Session || ''));
+  Object.assign(AS, { mode: ruleCode(S.settings['Assignment Rule']), scope: 'unstarted', sel: new Set(), q: '',
+    rows: order.map(c => ({ id: c['Course ID'], c, Program: c.Program || '', Priority: c.Priority || 'P2', curPri: c.Priority || 'P2', Instructor: c.Instructor || '', cur: c.Reviewer || '', Reviewer: c.Reviewer || '', autoNote: '' })) });
+  drawAssign();
+}
+function revOptions(sel) {
+  const names = S.reviewers.filter(r => r.active && r.role === 'Reviewer').map(r => r.name);
+  if (sel && !names.includes(sel)) names.push(sel);
+  return `<option value="">Unassigned</option>` + names.map(n => `<option${n === sel ? ' selected' : ''}>${esc(n)}</option>`).join('');
+}
+function drawAssign() {
+  const count = k => AS.rows.filter(r => { const s = AS.scope; AS.scope = k; const v = asInScope(r); AS.scope = s; return v; }).length;
+  app().innerHTML = `<div class="sbar"><button class="btn sm o" data-act="asBack">← All courses</button><div class="who">Assignments and priority · ${esc(S.term)}</div></div>
+    <div id="as-load"></div>
+    <div class="panel"><h3>Assign reviewers automatically</h3><div class="body">
+      <div class="supbar">
+        <div><label class="f" for="as-mode">Rule</label><select id="as-mode" data-ch="asMode">${ruleOptions(AS.mode)}</select></div>
+        <div><label class="f" for="as-scope">Apply to</label><select id="as-scope" data-ch="asScope">${SCOPES.map(([k, l]) => `<option value="${k}"${AS.scope === k ? ' selected' : ''}>${esc(l)} (${count(k)})</option>`).join('')}</select></div>
+        <button class="btn p sm" data-act="asPropose">Propose assignments</button>
+      </div>
+      <p class="ruledesc" id="as-desc">${esc(RULE_DESC[AS.mode])}</p>
+      <p class="ruledesc">A reviewer is never assigned a course they teach. Submitted reviews are never moved automatically. Nothing is saved until you press <b>Save</b>.</p>
+    </div></div>
+    <div class="panel"><h3>Set priority automatically</h3><div class="body">
+      <div class="supbar"><button class="btn p sm" data-act="asPriRule">Apply priority rule</button></div>
+      <p class="ruledesc">${esc(PRI_RULE_TEXT)} Applies to every course this term. Run it before proposing a balanced assignment, since balancing spreads each priority level evenly.</p>
+    </div></div>
+    <div class="panel"><h3>Change by hand</h3><div class="body">
+      <div class="supbar">
+        <input type="search" data-in="asQ" placeholder="Search course, instructor, or reviewer" aria-label="Search courses" style="min-width:240px">
+        <span class="small"><b id="as-selcount">0</b> selected</span>
+        <div><label class="f" for="as-bulk">Move selected to</label><select id="as-bulk">${revOptions('')}</select></div>
+        <button class="btn sm" data-act="asBulk" id="as-bulkbtn">Move</button>
+        <div><label class="f" for="as-bulkpri">Set priority of selected</label><select id="as-bulkpri">${priOptions('P1')}</select></div>
+        <button class="btn sm" data-act="asBulkPri" id="as-bulkpribtn">Set</button>
+        <button class="btn sm" data-act="asSelScope">Select courses in scope</button><button class="btn sm" data-act="asSelNone">Clear selection</button>
+      </div>
+      <p class="ruledesc">Change the reviewer or priority in any row, or tick several rows and change them together. Changed rows are highlighted.</p>
+    </div></div>
+    <div id="as-table" style="padding:0 20px 14px"></div>
+    <div class="sum" id="as-bar"></div>`;
+  drawAsTable(); refreshAs();
+}
+function drawAsTable() {
+  const vis = asVisible(), allSel = vis.length && vis.every(([, i]) => AS.sel.has(i));
+  $('#as-table').innerHTML = `<div class="tw" style="margin-top:0"><table><thead><tr>
+    <th><input type="checkbox" data-ch="asSelAll" aria-label="Select all shown"${allSel ? ' checked' : ''}></th><th>Course</th><th>Session</th><th>Instructor</th><th>Program</th><th>Priority</th><th>Stage</th><th>Current reviewer</th><th>New reviewer</th><th>Notes</th></tr></thead><tbody>
+    ${vis.length ? vis.map(([r, i]) => { const st = stageOf(r.c); return `<tr data-i="${i}" class="${revChanged(r) || priChanged(r) ? 'chg' : ''}">
+      <td><input type="checkbox" data-ch="asSel" data-i="${i}"${AS.sel.has(i) ? ' checked' : ''} aria-label="Select ${esc(r.c['Course Number'])}"></td>
+      <td><b>${esc(r.c['Course Number'])}</b>${r.c['Course Title'] ? '<br><span class="muted">' + esc(r.c['Course Title']) + '</span>' : ''}</td><td>${esc(r.c.Session)}</td><td>${esc(r.Instructor)}</td><td>${esc(r.Program)}</td><td><select data-ch="asPri" data-i="${i}" aria-label="Priority for ${esc(r.c['Course Number'])}">${priOptions(r.Priority)}</select></td>
+      <td><span class="stg s${STAGES.indexOf(st)}">${esc(st)}</span></td><td>${esc(r.cur || 'Unassigned')}</td>
+      <td><select data-ch="asRev" data-i="${i}" aria-label="New reviewer for ${esc(r.c['Course Number'])}">${revOptions(r.Reviewer)}</select></td>
+      <td class="w" data-note>${esc(asNotes(r))}</td></tr>`; }).join('') : '<tr><td colspan="10" class="muted">No courses match.</td></tr>'}
+  </tbody></table></div>`;
+}
+function updateAsRow(i) {
+  const tr = document.querySelector(`#as-table tr[data-i="${i}"]`); if (!tr) return;
+  const r = AS.rows[i]; tr.className = revChanged(r) || priChanged(r) ? 'chg' : '';
+  tr.querySelector('[data-note]').textContent = asNotes(r);
+  const sel = tr.querySelector('[data-ch=asRev]'); if (sel.value !== r.Reviewer) sel.innerHTML = revOptions(r.Reviewer);
+  const ps = tr.querySelector('[data-ch=asPri]'); if (ps.value !== r.Priority) ps.value = r.Priority;
+}
+function refreshAs() {
+  const keys = [...new Set([...S.reviewers.filter(r => r.active && r.role === 'Reviewer').map(r => r.name), ...AS.rows.map(r => r.cur), ...AS.rows.map(r => r.Reviewer)])]
+    .sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
+  const tally = key => { const t = {}; keys.forEach(k => t[k] = { n: 0, P1: 0, P2: 0, P3: 0 }); AS.rows.forEach(r => { t[r[key]].n++; t[r[key]][r.Priority] = (t[r[key]][r.Priority] || 0) + 1; }); return t; };
+  const before = tally('cur'), after = tally('Reviewer'), ch = asChanged();
+  $('#as-load').innerHTML = `<div class="rvgrid">${keys.filter(k => k || before[k].n || after[k].n).map(k => `<div class="rvc" style="cursor:default">
+    <div class="nm" style="color:${k ? colorFor(k) : 'var(--nm-tx)'}">${k ? esc(k) : 'Unassigned'}</div>
+    <div style="font-size:18px;font-weight:700;margin:4px 0 2px">${before[k].n}${after[k].n !== before[k].n ? ` <span style="color:var(--txt2);font-weight:400">→</span> <span style="color:var(--cr)">${after[k].n}</span>` : ''}</div>
+    <div class="small muted">P1 ${after[k].P1} · P2 ${after[k].P2} · P3 ${after[k].P3}${after[k].n !== before[k].n ? ' (after changes)' : ''}</div></div>`).join('')}</div>`;
+  $('#as-bar').innerHTML = `<span><b>${ch.length}</b> unsaved change${ch.length === 1 ? '' : 's'}</span>
+    <span style="margin-left:auto;display:flex;gap:8px"><button class="btn sm" data-act="asReset"${ch.length ? '' : ' disabled'}>Undo changes</button>
+    <button class="btn g" data-act="asSave"${ch.length ? '' : ' disabled'}>Save ${ch.length || ''} change${ch.length === 1 ? '' : 's'}</button></span>`;
+  $('#as-selcount').textContent = AS.sel.size; $('#as-bulkbtn').disabled = $('#as-bulkpribtn').disabled = !AS.sel.size;
+}
+function asPropose() {
+  const targets = AS.rows.filter(asInScope).filter(r => !submitted(r.c));
+  if (!targets.length) return toast('No courses in this scope.');
+  autoAssign(targets, AS.rows.filter(r => !targets.includes(r)), AS.mode);
+  const moved = targets.filter(r => r.Reviewer !== r.cur).length;
+  drawAsTable(); refreshAs();
+  toast(moved ? `${moved} change${moved > 1 ? 's' : ''} proposed. Check the highlighted rows, then press Save.` : 'The current assignments already follow this rule.', 5000);
+}
+function asPriRule() {
+  const pr = rulePriorities(AS.rows.map(r => r.c)); let n = 0;
+  AS.rows.forEach((r, k) => { if (r.Priority !== pr[k]) n++; r.Priority = pr[k]; });
+  drawAsTable(); refreshAs();
+  toast(n ? `${n} priority change${n > 1 ? 's' : ''} proposed. Check the highlighted rows, then press Save.` : 'Priorities already follow the rule.', 5000);
+}
+function asBulkPri() {
+  const p = $('#as-bulkpri').value, n = AS.sel.size;
+  AS.sel.forEach(i => { AS.rows[i].Priority = p; }); AS.sel.clear(); drawAsTable(); refreshAs();
+  toast(`${n} course${n > 1 ? 's' : ''} set to ${p}. Press Save to keep the change.`);
+}
+function asBulk() {
+  const to = $('#as-bulk').value;
+  AS.sel.forEach(i => { AS.rows[i].Reviewer = to; AS.rows[i].autoNote = ''; });
+  const n = AS.sel.size; AS.sel.clear(); drawAsTable(); refreshAs();
+  toast(`${n} course${n > 1 ? 's' : ''} moved to ${to || 'Unassigned'}. Press Save to keep the change.`);
+}
+async function asSave() {
+  const ch = asChanged(); if (!ch.length) return;
+  const rv = ch.filter(revChanged), pc = ch.filter(priChanged);
+  const own = rv.filter(r => ownCourse(S.reviewers.find(x => x.name === r.Reviewer), r.Instructor));
+  const sub = rv.filter(r => submitted(r.c)), prog = rv.filter(r => !submitted(r.c) && stageOf(r.c) === 'In Review');
+  const lines = [`Save ${[rv.length ? rv.length + ' reviewer change' + (rv.length > 1 ? 's' : '') : '', pc.length ? pc.length + ' priority change' + (pc.length > 1 ? 's' : '') : ''].filter(Boolean).join(' and ')}?`];
+  if (own.length) lines.push(`• ${own.length} course${own.length > 1 ? 's go' : ' goes'} to a reviewer who teaches it: ${own.map(r => r.c['Course Number']).join(', ')}`);
+  if (sub.length) lines.push(`• ${sub.length} submitted review${sub.length > 1 ? 's move' : ' moves'}; the new reviewer takes over the follow-up.`);
+  if (prog.length) lines.push(`• ${prog.length} course${prog.length > 1 ? 's are' : ' is'} partly rated; the ratings stay with the course.`);
+  if (!confirm(lines.join('\n'))) return;
+  const r = await api('assignCourses', { ops: ch.map(x => Object.assign({ courseId: x.id }, revChanged(x) ? { reviewer: x.Reviewer } : {}, priChanged(x) ? { priority: x.Priority } : {})) });
+  r.courses.forEach(c => { const i = S.courses.findIndex(x => x['Course ID'] === c['Course ID']); if (i >= 0) S.courses[i] = c; });
+  renderAssign();
+  toast(`${r.courses.length} course${r.courses.length === 1 ? '' : 's'} updated.` + (r.rejected.length ? ` ${r.rejected.length} not saved: ${r.rejected[0].reason}.` : ''), 5000);
+}
 
 // ── settings (supervisor) ────────────────────────────────────────────────────
 function showSettings() {
@@ -548,14 +721,15 @@ function showSettings() {
     <div class="fr"><label class="f" for="st-inst">Institution</label><input type="text" id="st-inst" value="${esc(s['Institution'])}"></div>
     <div class="fr" style="display:flex;gap:10px"><div style="flex:1"><label class="f" for="st-due">Reviews due (optional)</label><input type="date" id="st-due" value="${esc(s['Review Due Date'])}"></div>
       <div style="flex:1"><label class="f" for="st-days">Days allowed for revisions</label><input type="number" id="st-days" min="1" max="120" value="${esc(s['Revision Days'] || 14)}"></div></div>
+    <div class="fr"><label class="f" for="st-rule">Default rule for assigning reviewers</label><select id="st-rule" style="width:100%">${ruleOptions(ruleCode(s['Assignment Rule']))}</select></div>
     <div class="note blue"><b>People:</b> ${S.reviewers.map(r => `${esc(r.name)} (${r.role === 'Supervisor' ? 'Supervisor' : esc(r.programs || 'no program')}${r.active ? '' : ', inactive'}${r.hasPin ? '' : ', no PIN'})`).join('; ')}.<br>
       Names, PINs, and programs are edited in the <b>Reviewers</b> tab of the Sheet. Rubric wording is edited in the <b>Rubric</b> tab. Changes apply at the next sign-in or Refresh.</div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" data-act="stClose">Cancel</button><button class="btn p" data-act="stSave">Save</button></div></div></div>`;
 }
 async function saveSettings() {
   const term = $('#st-term').value.trim(); if (!term) throw new Error('Enter the current term.');
-  await api('saveSettings', { settings: { 'Current Term': term, 'Office Name': $('#st-office').value, 'Institution': $('#st-inst').value, 'Review Due Date': $('#st-due').value, 'Revision Days': $('#st-days').value } });
-  $('#modal').innerHTML = ''; S.f = { stage: '', reviewer: '', program: '', q: '' }; await load(term); toast('Settings saved.');
+  await api('saveSettings', { settings: { 'Current Term': term, 'Office Name': $('#st-office').value, 'Institution': $('#st-inst').value, 'Review Due Date': $('#st-due').value, 'Revision Days': $('#st-days').value, 'Assignment Rule': ruleLabel($('#st-rule').value) } });
+  S.f = { stage: '', reviewer: '', program: '', q: '' }; await load(term); $('#modal').innerHTML = ''; toast('Settings saved.');
 }
 
 // ── import (supervisor): Excel in, assigned courses out ──────────────────────
@@ -567,7 +741,7 @@ const GUESS = { number: [/course\s*(number|no\.?|#|links?|code|id)\b/i, /^course
   session: [/^term$/i, /session/i], status: [/course\s*status/i, /^status$/i], priority: [/priority/i] };
 const tidy = v => String(v == null ? '' : v).replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
 function renderImport() {
-  S.view = 'import'; Object.assign(IM, { wb: null, sheet: '', headers: [], rows: [], map: {}, items: [], mode: 'mixed', flagCols: [] });
+  S.view = 'import'; Object.assign(IM, { wb: null, sheet: '', headers: [], rows: [], map: {}, items: [], mode: ruleCode(S.settings['Assignment Rule']), flagCols: [], priChanges: [], repri: true });
   app().innerHTML = `<div class="sbar"><button class="btn sm o" data-act="imCancel">← All courses</button><div class="who">Import courses into ${esc(S.term)}</div></div>
     <div class="pad"><p>Choose the course list as an Excel or CSV file. Any column layout is accepted; you confirm which column is which before anything is saved. Courses already in the portal keep their reviewer and their progress.</p>
     <p style="margin:12px 0"><input type="file" accept=".xlsx,.xls,.csv" data-ch="imFile" aria-label="Course list file"> <button class="btn sm" data-act="imTemplate">Download blank template</button></p>
@@ -621,32 +795,83 @@ function buildItems() {
     let program = tidy(get(r, 'program')).toUpperCase();
     if (!program && college) { const a = college.match(/\(([A-Z]{2,8})\)/) || college.match(/^([A-Z]{2,8})\s*-/); program = a ? a[1] : ''; }
     const status = tidy(get(r, 'status')), pv = tidy(get(r, 'priority'));
-    const priority = pv ? (/1|new/i.test(pv) ? 'P1' : /3/.test(pv) ? 'P3' : 'P2') : /new/i.test(status) ? 'P1' : S.certifiedBefore.includes(cn.num) ? 'P3' : 'P2';
+    const filePri = pv ? (/1|new/i.test(pv) ? 'P1' : /3/.test(pv) ? 'P3' : 'P2') : '';
     const flags = IM.flagCols.filter(({ j }) => tidy(r[j]).toLowerCase() === 'no').map(({ h }) => { const p = h.replace(/:\s*$/, '').split(/:\s+/); return tidy(p[p.length - 1]).slice(0, 70); });
     const id = [S.term, cn.num, ses].filter(Boolean).join(' | ');
     if (seen.has(id)) return void IM.items.push({ skip: true, 'Course Number': cn.num, Session: ses, Instructor: inst, w: ['Duplicate row in file — skipped'] });
     seen.add(id);
     const ex = existing.get(id);
     IM.items.push({ id, exists: !!ex, Term: S.term, Session: ses, 'Course Number': cn.num, 'Course Title': tidy(get(r, 'title')), Instructor: inst, 'Instructor Email': tidy(get(r, 'email')),
-      Program: program, College: college, Credits: tidy(get(r, 'credits')), 'Course Status': status, Priority: priority, 'Pre-Flags': flags.join('; '), Reviewer: ex ? ex.Reviewer : '', w });
+      Program: program, College: college, Credits: tidy(get(r, 'credits')), 'Course Status': status, Priority: '', filePri, 'Pre-Flags': flags.join('; '), Reviewer: ex ? ex.Reviewer : '', w });
   });
+  applyImportPriorities();
   assignAll();
 }
-function assignAll() {
-  const revs = S.reviewers.filter(r => r.active && r.role === 'Reviewer');
-  const load = {}, pl = {}; revs.forEach(r => { load[r.name] = S.courses.filter(c => c.Reviewer === r.name).length; pl[r.name] = {}; });
-  const own = (r, it) => r.instructorName && it.Instructor.toLowerCase().includes(r.instructorName.toLowerCase());
-  const least = (list, it) => list.slice().sort((a, b) => (pl[a.name][it.Priority] || 0) - (pl[b.name][it.Priority] || 0) || load[a.name] - load[b.name])[0];
-  IM.items.filter(it => !it.skip && !(it.exists && it.Reviewer)).sort((a, b) => a.Priority.localeCompare(b.Priority)).forEach(it => {
-    it.w = it.w.filter(x => !/own course|No reviewer covers/.test(x)); it.manual = false;
-    const match = revs.filter(r => it.Program && r.programs.toUpperCase().split(/[,;\s]+/).includes(it.Program));
-    let pick = null;
-    if (IM.mode !== 'balance' && match.length) { pick = least(match.filter(r => !own(r, it)), it); if (!pick) it.w.push(IM.mode === 'program' ? 'Reviewer\'s own course — assign manually' : 'Reviewer\'s own course — assigned to another reviewer'); }
-    if (!pick && (IM.mode === 'balance' || (IM.mode === 'mixed'))) pick = least(revs.filter(r => !own(r, it)), it);
-    if (!pick && IM.mode === 'program' && !match.length) it.w.push('No reviewer covers ' + (it.Program || 'this program'));
-    it.Reviewer = pick ? pick.name : '';
-    if (pick) { load[pick.name]++; pl[pick.name][it.Priority] = (pl[pick.name][it.Priority] || 0) + 1; }
+// Work out priority for the whole term after this import (courses already in the portal plus the new rows).
+function applyImportPriorities() {
+  const live = IM.items.filter(i => !i.skip), byId = new Map(live.map(i => [i.id, i]));
+  const pool = S.courses.map(c => { const it = byId.get(c['Course ID']); return { id: c['Course ID'], 'Course Status': (it && it['Course Status']) || c['Course Status'], Session: c.Session, c }; })
+    .concat(live.filter(i => !i.exists).map(i => ({ id: i.id, 'Course Status': i['Course Status'], Session: i.Session })));
+  const pr = rulePriorities(pool), rule = new Map(pool.map((x, k) => [x.id, pr[k]]));
+  live.forEach(i => {
+    if (i.exists) { const c = S.courses.find(x => x['Course ID'] === i.id); i.Priority = i.curPri = (c && c.Priority) || 'P2'; }
+    else i.Priority = i.filePri || rule.get(i.id);
   });
+  IM.priChanges = pool.filter(x => x.c && rule.get(x.id) !== (x.c.Priority || 'P2')).map(x => ({ c: x.c, to: rule.get(x.id) }));
+}
+const RULES = [['mixed', 'By program, then balance the rest'], ['program', 'By program only'], ['balance', 'Balance load evenly']];
+const RULE_DESC = {
+  mixed: 'Each course goes to the reviewer who covers its program. Courses with no matching reviewer are spread evenly across all reviewers.',
+  program: 'Each course goes to the reviewer who covers its program. Courses with no matching reviewer stay unassigned.',
+  balance: 'Courses are spread evenly across all reviewers regardless of program. New (P1) courses are divided first so each reviewer gets a similar share.'
+};
+const ruleCode = v => (RULES.find(r => r[0] === v || r[1].toLowerCase() === String(v || '').trim().toLowerCase()) || RULES[0])[0];
+const ruleLabel = code => (RULES.find(r => r[0] === code) || RULES[0])[1];
+const ruleOptions = sel => RULES.map(([k, l]) => `<option value="${k}"${sel === k ? ' selected' : ''}>${esc(l)}</option>`).join('');
+const ownCourse = (rv, inst) => !!(rv && rv.instructorName && inst && inst.toLowerCase().includes(rv.instructorName.toLowerCase()));
+// targets: courses the rule may (re)assign. fixed: courses that keep their reviewer and count toward each reviewer's load.
+// A target keeps its current reviewer whenever the rule allows, so a rebalance moves only as many courses as needed.
+function autoAssign(targets, fixed, mode) {
+  const revs = S.reviewers.filter(r => r.active && r.role === 'Reviewer'), names = revs.map(r => r.name);
+  targets.forEach(it => it.autoNote = '');
+  if (!names.length) { targets.forEach(it => it.Reviewer = ''); return; }
+  const load = {}, pl = {}; names.forEach(n => { load[n] = 0; pl[n] = {}; });
+  const add = (n, p) => { load[n]++; pl[n][p] = (pl[n][p] || 0) + 1; };
+  fixed.forEach(c => { if (c.Reviewer in load) add(c.Reviewer, c.Priority || 'P2'); });
+  const canTake = (n, it) => (n in load) && !ownCourse(revs.find(r => r.name === n), it.Instructor);
+  const least = (list, p) => list.slice().sort((a, b) => (pl[a][p] || 0) - (pl[b][p] || 0) || load[a] - load[b] || a.localeCompare(b))[0];
+  const pri = it => it.Priority || 'P2';
+  const pool = [];
+  if (mode === 'balance') pool.push(...targets);
+  else targets.slice().sort((a, b) => pri(a).localeCompare(pri(b))).forEach(it => {
+    const prog = (it.Program || '').toUpperCase();
+    const match = names.filter(n => prog && (revs.find(r => r.name === n).programs || '').toUpperCase().split(/[,;\s]+/).includes(prog));
+    const ok = match.filter(n => canTake(n, it));
+    if (ok.length) { it.Reviewer = ok.includes(it.Reviewer) ? it.Reviewer : least(ok, pri(it)); add(it.Reviewer, pri(it)); return; }
+    if (match.length) it.autoNote = mode === 'program' ? 'Program reviewer teaches this course — assign manually' : 'Program reviewer teaches this course — given to another reviewer';
+    else if (mode === 'program') it.autoNote = 'No reviewer covers ' + (it.Program || 'this program');
+    if (mode === 'program') { if (canTake(it.Reviewer, it)) add(it.Reviewer, pri(it)); else it.Reviewer = ''; return; }
+    pool.push(it);
+  });
+  // Even out each priority tier in turn. Quotas fill the reviewers with the fewest courses first; a course stays put while its reviewer is within quota.
+  ['P1', 'P2', 'P3'].forEach(p => {
+    const tier = pool.filter(it => pri(it) === p); if (!tier.length) return;
+    const q = {}, tot = {}; names.forEach(n => { q[n] = pl[n][p] || 0; tot[n] = load[n]; });
+    tier.forEach(() => { const n = names.slice().sort((a, b) => q[a] - q[b] || tot[a] - tot[b] || a.localeCompare(b))[0]; q[n]++; tot[n]++; });
+    const movers = [];
+    tier.forEach(it => { if (canTake(it.Reviewer, it) && (pl[it.Reviewer][p] || 0) < q[it.Reviewer]) add(it.Reviewer, p); else movers.push(it); });
+    movers.forEach(it => {
+      const ok = names.filter(n => canTake(n, it)), room = ok.filter(n => (pl[n][p] || 0) < q[n]);
+      it.Reviewer = room.length ? least(room, p) : ok.length ? least(ok, p) : '';
+      if (it.Reviewer) add(it.Reviewer, p);
+    });
+  });
+}
+function assignAll() {
+  const targets = IM.items.filter(it => !it.skip && !(it.exists && it.Reviewer));
+  targets.forEach(it => { it.w = it.w.filter(x => !/teaches this course|No reviewer covers/.test(x)); it.manual = false; });
+  autoAssign(targets, S.courses.filter(c => c.Reviewer), IM.mode);
+  targets.forEach(it => { if (it.autoNote) it.w.push(it.autoNote); });
 }
 function renderImportBody() {
   const b = $('#im-body'); if (!b) return;
@@ -659,25 +884,28 @@ function renderImportBody() {
     ${IM.flagCols.length ? `<p class="small muted">${IM.flagCols.length} Yes/No self-report column${IM.flagCols.length > 1 ? 's' : ''} detected. Any "No" answer is shown to the reviewer as an item to check.</p>` : ''}
     ${!IM.map.number ? '<div class="note err">Select the column that holds the course number.</div>' : `
     <h2 style="margin-top:14px">2. Assign reviewers</h2>
-    <p style="margin:6px 0"><select data-ch="imMode" aria-label="Assignment rule">
-      <option value="mixed"${IM.mode === 'mixed' ? ' selected' : ''}>By program, then balance the rest evenly</option>
-      <option value="program"${IM.mode === 'program' ? ' selected' : ''}>By program only (leave the rest unassigned)</option>
-      <option value="balance"${IM.mode === 'balance' ? ' selected' : ''}>Balance all courses evenly, by priority</option></select>
-      <span class="small muted"> A reviewer is never assigned a course they teach. Adjust any row below.</span></p>
-    <p class="small"><b>${fresh.length}</b> new · <b>${live.length - fresh.length}</b> already in the portal · ${Object.keys(tally).map(k => `${esc(k)}: <b>${tally[k]}</b>`).join(' · ')}</p>
+    <p style="margin:6px 0"><select data-ch="imMode" aria-label="Assignment rule">${ruleOptions(IM.mode)}</select></p>
+    <p class="ruledesc">${esc(RULE_DESC[IM.mode])} A reviewer is never assigned a course they teach. Adjust any row below, or change it later under <b>Assignments &amp; priority</b>.</p>
+    <h2 style="margin-top:14px">3. Set priority</h2>
+    <p class="ruledesc">${esc(PRI_RULE_TEXT)}${IM.map.priority ? ' Rows with a value in the file\'s priority column keep that value.' : ''} Change any row below.</p>
+    ${IM.priChanges.length ? `<p class="small" style="margin-top:6px"><label><input type="checkbox" data-ch="imRepri"${IM.repri ? ' checked' : ''}> Also update the priority of ${IM.priChanges.length} course${IM.priChanges.length > 1 ? 's' : ''} already in the portal so the order stays correct (${IM.priChanges.slice(0, 4).map(x => esc(x.c['Course Number']) + ' ' + esc(x.c.Priority || 'P2') + ' → ' + x.to).join(', ')}${IM.priChanges.length > 4 ? ', …' : ''})</label></p>` : ''}
+    <p class="small" style="margin-top:12px"><b>${fresh.length}</b> new · <b>${live.length - fresh.length}</b> already in the portal · ${Object.keys(tally).map(k => `${esc(k)}: <b>${tally[k]}</b>`).join(' · ')}</p>
     <div class="tw"><table><thead><tr><th>#</th><th>Course</th><th>Session</th><th>Title</th><th>Instructor</th><th>Program</th><th>Priority</th><th>Reviewer</th><th>Notes</th></tr></thead><tbody>
     ${IM.items.map((it, i) => it.skip ? `<tr class="exists"><td>${i + 1}</td><td>${esc(it['Course Number'])}</td><td>${esc(it.Session)}</td><td></td><td>${esc(it.Instructor)}</td><td></td><td></td><td></td><td class="w">${esc(it.w.join('; '))}</td></tr>`
-      : `<tr class="${it.exists ? 'exists' : ''}"><td>${i + 1}</td><td><b>${esc(it['Course Number'])}</b></td><td>${esc(it.Session)}</td><td>${esc(it['Course Title'])}</td><td>${esc(it.Instructor)}</td><td>${esc(it.Program)}</td><td>${esc(it.Priority)}</td>
+      : `<tr class="${it.exists ? 'exists' : ''}"><td>${i + 1}</td><td><b>${esc(it['Course Number'])}</b></td><td>${esc(it.Session)}</td><td>${esc(it['Course Title'])}</td><td>${esc(it.Instructor)}</td><td>${esc(it.Program)}</td><td>${it.exists ? esc(it.Priority) : `<select data-ch="imPri" data-i="${i}" aria-label="Priority for ${esc(it['Course Number'])}">${priOptions(it.Priority)}</select>`}</td>
         <td>${it.exists && it.Reviewer ? esc(it.Reviewer) : `<select data-ch="imRev" data-i="${i}" aria-label="Reviewer for ${esc(it['Course Number'])}"><option value="">Unassigned</option>${revs.map(r => `<option${it.Reviewer === r.name ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select>`}</td>
-        <td class="w">${esc([it.exists ? 'Already in portal — progress kept' : '', ...it.w, it['Pre-Flags'] ? 'Self-report "No": ' + it['Pre-Flags'] : ''].filter(Boolean).join('; '))}</td></tr>`).join('')}
+        <td class="w">${esc([it.exists ? 'Already in portal — progress kept' : '', ...(it.exists && IM.repri ? IM.priChanges.filter(x => x.c['Course ID'] === it.id).map(x => 'Priority ' + it.Priority + ' → ' + x.to) : []), ...it.w, it['Pre-Flags'] ? 'Self-report "No": ' + it['Pre-Flags'] : ''].filter(Boolean).join('; '))}</td></tr>`).join('')}
     </tbody></table></div>
     <p style="margin-top:14px;display:flex;gap:8px"><button class="btn p" data-act="imRun" ${live.length ? '' : 'disabled'}>Import ${live.length} course${live.length === 1 ? '' : 's'} into ${esc(S.term)}</button><button class="btn" data-act="imCancel">Cancel</button></p>`}`;
 }
 async function runImport() {
-  const rows = IM.items.filter(i => !i.skip).map(i => ({ Term: i.Term, Session: i.Session, 'Course Number': i['Course Number'], 'Course Title': i['Course Title'], Instructor: i.Instructor,
-    'Instructor Email': i['Instructor Email'], Program: i.Program, College: i.College, Credits: i.Credits, 'Course Status': i['Course Status'], Priority: i.exists ? '' : i.Priority, 'Pre-Flags': i['Pre-Flags'], Reviewer: i.Reviewer }));
+  const live = IM.items.filter(i => !i.skip), ch = IM.repri ? IM.priChanges : [], chMap = new Map(ch.map(x => [x.c['Course ID'], x.to]));
+  const rows = live.map(i => ({ Term: i.Term, Session: i.Session, 'Course Number': i['Course Number'], 'Course Title': i['Course Title'], Instructor: i.Instructor,
+    'Instructor Email': i['Instructor Email'], Program: i.Program, College: i.College, Credits: i.Credits, 'Course Status': i['Course Status'], Priority: i.exists ? (chMap.get(i.id) || '') : i.Priority, 'Pre-Flags': i['Pre-Flags'], Reviewer: i.Reviewer }));
+  ch.filter(x => !live.some(i => i.id === x.c['Course ID'])).forEach(x => rows.push({ Term: x.c.Term, Session: x.c.Session, 'Course Number': x.c['Course Number'], Priority: x.to }));
   const r = await api('importCourses', { rows }); S.view = 'dash'; await load(S.term);
-  toast(`${r.added} course${r.added === 1 ? '' : 's'} added, ${r.updated} already present.`, 5000);
+  const present = live.filter(i => i.exists).length;
+  toast(`${r.added} course${r.added === 1 ? '' : 's'} added, ${present} already present` + (ch.length ? `; ${ch.length} priorit${ch.length === 1 ? 'y' : 'ies'} updated.` : '.'), 5000);
 }
 function downloadTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([['Course Number', 'Course Title', 'Instructor', 'Instructor Email', 'Program', 'College', 'Credit Hours', 'Session', 'Course Status'],
