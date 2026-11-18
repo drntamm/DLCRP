@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DL Course Review Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{color-scheme:light;
+  --cr:#7B0707;--cr-dk:#5a0505;--cr-lt:#fdf2f2;--go:#F2BD2C;--go-lt:#fef9ec;--go-md:#fef3cc;
+  --met-bg:#eaf3de;--met-bd:#3B6D11;--met-tx:#27500A;--nm-bg:#FCEBEB;--nm-bd:#A32D2D;--nm-tx:#791F1F;
+  --na-bg:#FFF8E1;--na-bd:#B45309;--na-tx:#78350F;--bl-bg:#E8F0FB;--bl-bd:#185FA5;--bl-tx:#0F3D6E;
+  --border:#d9d9d9;--bg:#fff;--bg2:#f7f7f7;--bg3:#efefef;--txt:#1a1a1a;--txt2:#555}
+body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:var(--txt);background:var(--bg3);min-height:100vh}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+.page{max-width:1080px;margin:0 auto;padding:16px}
+.hdr{background:var(--cr);color:#fff;padding:16px 24px 12px;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:14px}
+.badge-tu{background:var(--go);color:var(--cr);font-weight:700;font-size:11px;padding:3px 10px;border-radius:4px;letter-spacing:.4px;white-space:nowrap}
+.hdr h1{font-family:Garamond,'EB Garamond',Georgia,serif;font-size:20px;font-weight:600}
+.hdr p{font-size:11px;color:rgba(255,255,255,.78);margin-top:2px}
+.gold{height:4px;background:var(--go)}
+.card{background:var(--bg);border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;min-height:260px}
+.pad{padding:16px 20px}
+h2{font-size:15px;font-weight:700;margin-bottom:4px}
+.muted{color:var(--txt2)}.small{font-size:11px}
+/* buttons */
+.btn{border:1px solid var(--border);background:var(--bg);border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer}
+.btn:hover{background:var(--bg2)}
+.btn.p{background:var(--cr);border-color:var(--cr);color:#fff}.btn.p:hover{background:var(--cr-dk)}
+.btn.g{background:var(--met-bd);border-color:var(--met-bd);color:#fff}
+.btn.o{border-color:var(--cr);color:var(--cr)}
+.btn.sm{padding:4px 10px;font-size:11px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.cardc:focus-visible{outline:2px solid var(--bl-bd);outline-offset:1px}
+input[type=text],input[type=password],input[type=date],input[type=number],input[type=search],select,textarea{border:1px solid var(--border);border-radius:6px;padding:6px 9px;background:var(--bg)}
+label.f{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--txt2);margin-bottom:3px}
+/* login */
+.login{padding:32px 28px;max-width:420px;margin:0 auto}
+.login .row{margin-bottom:14px}.login select,.login input{width:100%;padding:9px 12px}
+.login input[type=password],.login input.pin{letter-spacing:6px;font-size:18px;font-weight:700;text-align:center}
+.note{padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.6;margin-top:12px}
+.note.err{background:var(--nm-bg);border:1px solid var(--nm-bd);color:var(--nm-tx)}
+.note.info{background:var(--go-md);border:1px solid var(--go);color:#5a3e00}
+.note.ok{background:var(--met-bg);border:1px solid var(--met-bd);color:var(--met-tx)}
+.note.blue{background:var(--bl-bg);border:1px solid var(--bl-bd);color:var(--bl-tx)}
+/* session bar */
+.sbar{display:flex;align-items:center;gap:10px;padding:10px 20px;background:var(--bg2);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;background:var(--cr)}
+.sbar .who{font-weight:700}.sbar .right{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chipsave{font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;background:var(--met-bg);color:var(--met-tx)}
+.chipsave.saving{background:var(--go-md);color:#7a5a00}.chipsave.error{background:var(--nm-bg);color:var(--nm-tx)}
+/* stage */
+.stg{display:inline-block;font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;white-space:nowrap}
+.stg.s0{background:#e9e9e9;color:#444}.stg.s1{background:var(--go-md);color:#7a5a00}
+.stg.s2{background:var(--nm-bg);color:var(--nm-tx)}.stg.s3{background:var(--bl-bg);color:var(--bl-tx)}
+.stg.s4{background:var(--met-bg);color:var(--met-tx)}
+.pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:14px 20px 6px}
+.pipe button{border:1px solid var(--border);background:var(--bg);border-radius:8px;padding:9px 10px;text-align:left;cursor:pointer}
+.pipe button.on{border-color:var(--cr);box-shadow:0 0 0 2px rgba(123,7,7,.18)}
+.pipe .n{font-size:22px;font-weight:700;line-height:1.1}.pipe .l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--txt2)}
+.rvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;padding:8px 20px}
+.rvc{border:1px solid var(--border);border-radius:8px;padding:9px 12px;background:var(--bg);cursor:pointer;text-align:left}
+.rvc.on{border-color:var(--cr);box-shadow:0 0 0 2px rgba(123,7,7,.18)}
+.rvc .nm{font-weight:700;font-size:12px}.rvc .bar{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin:6px 0 5px}
+.rvc .bar i{display:block;height:100%;background:var(--met-bd)}
+.filters{display:flex;gap:8px;padding:8px 20px 4px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:9px;padding:10px 20px 20px}
+.cardc{border:1px solid var(--border);border-left:4px solid #bbb;border-radius:8px;padding:10px 12px;cursor:pointer;background:var(--bg);text-align:left;display:block;width:100%}
+.cardc:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.cardc.s1{border-left-color:var(--go)}.cardc.s2{border-left-color:var(--nm-bd)}.cardc.s3{border-left-color:var(--bl-bd)}.cardc.s4{border-left-color:var(--met-bd)}
+.cardc .cn{font-weight:700;font-size:12px}.cardc .ct,.cardc .ci{font-size:11px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cardc .meta{font-size:10px;color:var(--txt2);margin:4px 0 6px}
+.cardc .st{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:10px}
+.pri1{color:var(--nm-tx);font-weight:700}.pri3{color:var(--met-tx);font-weight:700}
+.over{color:var(--nm-tx);font-weight:700}
+.empty{padding:36px 20px;text-align:center;color:var(--txt2)}
+/* review */
+.pills{display:flex;flex-wrap:wrap;gap:6px;padding:9px 20px;background:var(--go-lt);border-bottom:1px solid #e8d48a;align-items:center}
+.pill{font-size:11px;background:#fff;border:1px solid #d9c46a;color:#5a3e00;padding:3px 9px;border-radius:12px}
+.pill.warn{background:#FFF3CD;border-color:#856404;color:#533f03;font-weight:700}
+.sec{font-size:11px;font-weight:700;color:var(--cr);text-transform:uppercase;letter-spacing:.7px;padding:16px 0 6px;border-bottom:2px solid var(--go);margin-bottom:8px}
+.secnote{font-size:11px;color:#5a3e00;background:var(--go-lt);border-radius:4px;padding:6px 9px;margin-bottom:8px}
+.ri{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.ri.need{border-color:#E24B4A}
+.ri.met{border-color:var(--met-bd)}.ri.nm{border-color:var(--nm-bd)}.ri.na{border-color:var(--na-bd)}
+.rih{display:flex;align-items:flex-start;gap:10px;padding:11px 14px}
+.ri.met .rih{background:var(--met-bg)}.ri.nm .rih{background:var(--nm-bg)}.ri.na .rih{background:var(--na-bg)}
+.num{min-width:22px;height:22px;border-radius:50%;background:var(--cr);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ri.met .num{background:var(--met-bd)}.ri.nm .num{background:var(--nm-bd)}.ri.na .num{background:var(--na-bd)}
+.rtx{flex:1;font-size:12px;line-height:1.5;min-width:0}.rtx b{font-weight:700}.rtx .g{font-size:11px;color:var(--txt2);margin-top:2px}
+.syl{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}.syl div{flex:1;min-width:140px}.syl input{width:100%;font-size:11px}
+.rg{display:flex;gap:6px;flex-shrink:0}
+.rg label{position:relative;display:flex;align-items:center;gap:4px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:#fff;font-size:11px;font-weight:700;color:var(--txt2);cursor:pointer;white-space:nowrap}
+.rg input{position:absolute;opacity:0;inset:0;cursor:pointer}
+.rg label:has(input:focus-visible){outline:2px solid var(--bl-bd);outline-offset:1px}
+.rg label.met:has(input:checked){background:var(--met-bd);border-color:var(--met-bd);color:#fff}
+.rg label.nm:has(input:checked){background:var(--nm-bd);border-color:var(--nm-bd);color:#fff}
+.rg label.na:has(input:checked){background:var(--na-bd);border-color:var(--na-bd);color:#fff}
+.fb{padding:8px 14px 10px;background:var(--bg2);border-top:1px solid var(--border)}
+.fb textarea{width:100%;min-height:54px;resize:vertical;line-height:1.5;font-size:12px}
+.rated{font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;white-space:nowrap}
+.rated.met{background:var(--met-bd);color:#fff}.rated.nm{background:var(--nm-bd);color:#fff}.rated.na{background:var(--na-bd);color:#fff}
+.sum{display:flex;gap:8px;padding:10px 20px;background:var(--bg2);border-top:1px solid var(--border);flex-wrap:wrap;align-items:center;position:sticky;bottom:0}
+.chip{padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600}
+.chip.met{background:var(--met-bg);color:var(--met-tx)}.chip.nm{background:var(--nm-bg);color:var(--nm-tx)}
+.chip.na{background:var(--na-bg);color:var(--na-tx)}.chip.pe{background:var(--go-md);color:#7a5a00}
+.panel{margin:14px 20px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.panel>h3{font-size:12px;font-weight:700;padding:9px 14px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.panel .body{padding:12px 14px}
+.rem{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.rem.done{background:var(--met-bg);border-color:var(--met-bd)}
+.rem .top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.rem textarea{width:100%;min-height:38px;margin-top:6px;font-size:12px}
+.rem .acts{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center}
+.supbar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+/* import */
+.maps{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin:10px 0}
+.maps select{width:100%}
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px}
+table{border-collapse:collapse;width:100%;font-size:11px}
+th{background:var(--cr);color:#fff;text-align:left;padding:6px 8px;white-space:nowrap}
+td{padding:5px 8px;border-top:1px solid var(--border);vertical-align:top}
+tr.exists td{background:var(--bg2);color:var(--txt2)}
+td.w{color:var(--nm-tx)}
+/* modal + toast */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{background:#fff;border-radius:10px;padding:22px 26px;max-width:560px;width:100%;max-height:90vh;overflow:auto}
+.modal .fr{margin-bottom:10px}.modal .fr input{width:100%}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:20px;font-size:12px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:60;max-width:90vw}
+#toast.show{opacity:1}
+@media(max-width:720px){.pipe{grid-template-columns:repeat(2,1fr)}.rih{flex-wrap:wrap}.rg{width:100%}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hdr">
+    <div class="badge-tu" id="hdr-inst">TUSKEGEE UNIVERSITY</div>
+    <div><h1>DL Course Review Portal</h1><p id="hdr-sub">&nbsp;</p></div>
+  </div>
+  <div class="gold"></div>
+  <main class="card" id="app"></main>
+</div>
+<div id="toast" role="status"></div>
+<div id="modal"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   THE ONLY LINE YOU EVER EDIT: paste the Web app URL from your Apps Script
+   deployment between the quotes. Courses, reviewers, PINs, the rubric and the
+   term all live in the Google Sheet, so this file never changes between terms.
+   ════════════════════════════════════════════════════════════════════════════ */
+const SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+const $ = s => document.querySelector(s);
+const app = () => $('#app');
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const STAGES = ['Assigned', 'In Review', 'Action Required', 'Revisions In Progress', 'Certified'];
+const RLABEL = { met: 'Met', nm: 'Not Met', na: 'N/A' };
+function toast(msg, ms = 3000) { const t = $('#toast'); t.textContent = msg; t.className = 'show'; clearTimeout(t._t); t._t = setTimeout(() => t.className = '', ms); }
+function initials(n) { return n.replace(/^Dr\.?\s*/i, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'; }
+function colorFor(n) { const p = ['#185FA5', '#553C9A', '#854F0B', '#0F6E6E', '#8A2D6B', '#3B6D11']; let h = 0; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return p[h % p.length]; }
+
+// ── state ────────────────────────────────────────────────────────────────────
+const S = { token: '', user: null, settings: {}, term: '', terms: [], rubric: [], courses: [], rv: {}, rem: {}, reviewers: [], certifiedBefore: [],
+            f: { stage: '', reviewer: '', program: '', q: '' }, view: 'dash', cur: '', save: 'saved' };
+const isSup = () => S.user && S.user.role === 'Supervisor';
+const courseById = id => S.courses.find(c => c['Course ID'] === id);
+const mine = c => isSup() || c.Reviewer === S.user.name;
+const submitted = c => !!c['Review Date'];
+const canEdit = c => mine(c) && !submitted(c);
+function item(c, id) { const m = S.rv[c['Course ID']] || (S.rv[c['Course ID']] = {}); return m[id] || (m[id] = { rating: '', feedback: '', sylTerm: '', sylDate: '' }); }
+function counts(c) { const k = { met: 0, nm: 0, na: 0, pend: 0 }; S.rubric.forEach(r => { const v = item(c, r.id).rating; k[v || 'pend']++; }); return k; }
+function stageOf(c) { if (submitted(c)) return c.Stage || 'Action Required'; return counts(c).pend < S.rubric.length ? 'In Review' : 'Assigned'; }
+const remOf = c => S.rem[c['Course ID']] || [];
+const openItems = c => remOf(c).filter(m => m.Status !== 'Completed');
+const overdue = c => submitted(c) && stageOf(c) !== 'Certified' ? openItems(c).filter(m => m['Due Date'] && m['Due Date'] < today()) : [];
+const priLabel = p => p === 'P1' ? 'P1 New' : p === 'P3' ? 'P3 Recently certified' : 'P2 Previously certified';
+
+// ── server calls ─────────────────────────────────────────────────────────────
+async function api(action, payload = {}) {
+  let res;
+  try {
+    res = await fetch(SCRIPT_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                    body: JSON.stringify(Object.assign({ action, token: S.token }, payload)) });
+  } catch (e) { throw new Error('Could not reach the review database. Check your connection and try again.'); }
+  let j; try { j = await res.json(); } catch (e) { throw new Error('The review database returned an unexpected reply. Confirm the Apps Script deployment is set to "Anyone".'); }
+  if (!j.ok) {
+    if (j.error === 'AUTH') { signOut(true); throw new Error('Your session has ended. Please sign in again.'); }
+    throw new Error(j.error);
+  }
+  return j.data;
+}
+
+// ── outbox: ratings are saved to the Sheet as the reviewer works ─────────────
+const OB = { q: {}, busy: false, pending: null, timer: null, seq: 0,
+  key() { return 'dlrp_outbox_' + S.user.name; },
+  load() { try { this.q = JSON.parse(localStorage.getItem(this.key()) || '{}'); } catch (e) { this.q = {}; } },
+  persist() { try { localStorage.setItem(this.key(), JSON.stringify(this.q)); } catch (e) {} },
+  size() { return Object.keys(this.q).length; },
+  put(courseId, itemId) {
+    const v = S.rv[courseId][itemId];
+    this.q[courseId + '\u0001' + itemId] = { courseId, itemId, rating: v.rating, feedback: v.feedback, sylTerm: v.sylTerm, sylDate: v.sylDate, n: ++this.seq };
+    this.persist(); setSave('saving'); clearTimeout(this.timer); this.timer = setTimeout(() => this.flush(), 900);
+  },
+  flush() {
+    clearTimeout(this.timer);
+    if (this.busy) return this.pending.then(() => this.size() ? this.flush() : true);
+    if (!this.size()) { setSave('saved'); return Promise.resolve(true); }
+    this.busy = true; setSave('saving');
+    const snap = Object.values(this.q);
+    this.pending = (async () => {
+      try {
+        const r = await api('saveBatch', { ops: snap.map(o => ({ courseId: o.courseId, itemId: o.itemId, rating: o.rating, feedback: o.feedback, sylTerm: o.sylTerm, sylDate: o.sylDate })) });
+        snap.forEach(o => { const k = o.courseId + '\u0001' + o.itemId; if (this.q[k] && this.q[k].n === o.n) delete this.q[k]; });
+        this.persist(); this.busy = false;
+        if (r.rejected.length) toast(r.rejected.length + ' change(s) were not saved: ' + r.rejected[0].reason + '.', 6000);
+        if (this.size()) return this.flush();
+        setSave('saved'); return true;
+      } catch (e) {
+        this.busy = false; setSave('error');
+        if (S.token) this.timer = setTimeout(() => this.flush(), 8000);
+        return false;
+      }
+    })();
+    return this.pending;
+  },
+  applyToState() {
+    Object.keys(this.q).forEach(k => {
+      const o = this.q[k], c = courseById(o.courseId);
+      if (!c || submitted(c)) { delete this.q[k]; return; }
+      o.n = ++this.seq; Object.assign(item(c, o.itemId), { rating: o.rating, feedback: o.feedback, sylTerm: o.sylTerm, sylDate: o.sylDate });
+    });
+    this.persist();
+  }
+};
+function setSave(state) {
+  S.save = state; const el = $('#save-chip'); if (!el) return;
+  el.className = 'chipsave' + (state === 'saved' ? '' : ' ' + state);
+  el.textContent = state === 'saved' ? 'All changes saved' : state === 'saving' ? 'Saving…' : 'Not saved — retrying';
+}
+const saveChip = () => `<span id="save-chip" class="chipsave${S.save === 'saved' ? '' : ' ' + S.save}">${S.save === 'saved' ? 'All changes saved' : S.save === 'saving' ? 'Saving…' : 'Not saved — retrying'}</span>`;
+window.addEventListener('beforeunload', e => { if (OB.size()) { e.preventDefault(); e.returnValue = ''; } });
+
+// ── sign-in ──────────────────────────────────────────────────────────────────
+async function boot() {
+  if (/PASTE_YOUR/.test(SCRIPT_URL)) {
+    app().innerHTML = `<div class="login"><h2>Setup required</h2><div class="note info">This portal is not yet connected to its Google Sheet. Open <b>index.html</b>, find <b>SCRIPT_URL</b> near the bottom of the file, and paste the Web app URL from your Apps Script deployment.</div></div>`;
+    return;
+  }
+  const saved = sessionStorage.getItem('dlrp_token');
+  if (saved) { S.token = saved; try { await load(); return; } catch (e) { S.token = ''; sessionStorage.removeItem('dlrp_token'); } }
+  showLogin();
+}
+async function showLogin(msg) {
+  S.view = 'login';
+  app().innerHTML = `<div class="login"><h2>Reviewer Sign-In</h2><p class="muted" style="margin-bottom:18px">Loading…</p></div>`;
+  let info;
+  try { info = await api('names'); } catch (e) { app().innerHTML = `<div class="login"><h2>Reviewer Sign-In</h2><div class="note err">${esc(e.message)}</div><p style="margin-top:12px"><button class="btn" data-act="retryLogin">Try again</button></p></div>`; return; }
+  setHeader(info.institution, info.office, info.term);
+  app().innerHTML = `<div class="login">
+    <h2>Reviewer Sign-In</h2>
+    <p class="muted" style="margin-bottom:18px">Select your name and enter your 4-digit PIN.</p>
+    <form id="login-form">
+      <div class="row"><label class="f" for="lg-name">Name</label>
+        <select id="lg-name" required><option value="">— Select your name —</option>${info.names.map(n => `<option>${esc(n)}</option>`).join('')}</select></div>
+      <div class="row"><label class="f" for="lg-pin">PIN</label>
+        <input id="lg-pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" required></div>
+      <button class="btn p" style="width:100%;padding:11px" id="lg-go">Sign in</button>
+    </form>
+    <div id="lg-err">${msg ? `<div class="note err">${esc(msg)}</div>` : ''}</div>
+    <div class="note info">Your PIN is provided individually by your supervisor. Your work is saved to the review database as you go, so you can continue from any computer.</div>
+  </div>`;
+  $('#login-form').addEventListener('submit', async e => {
+    e.preventDefault(); const b = $('#lg-go'); b.disabled = true; b.textContent = 'Signing in…';
+    try {
+      const r = await api('login', { name: $('#lg-name').value, pin: $('#lg-pin').value.trim() });
+      S.token = r.token; sessionStorage.setItem('dlrp_token', r.token); await load();
+    } catch (err) { if ($('#lg-err')) { $('#lg-err').innerHTML = `<div class="note err">${esc(err.message)}</div>`; b.disabled = false; b.textContent = 'Sign in'; } }
+  });
+}
+function signOut(silent) {
+  S.token = ''; S.user = null; sessionStorage.removeItem('dlrp_token'); clearTimeout(OB.timer);
+  if (!silent) showLogin(); else setTimeout(() => showLogin('Your session has ended. Please sign in again.'), 0);
+}
+function setHeader(inst, office, term) {
+  if (inst) $('#hdr-inst').textContent = inst.toUpperCase();
+  $('#hdr-sub').textContent = [office, term].filter(Boolean).join(' · ') || ' ';
+}
+async function load(term) {
+  const d = await api('bootstrap', term ? { term } : {});
+  Object.assign(S, { user: d.user, settings: d.settings, term: d.term, terms: d.terms, rubric: d.rubric, courses: d.courses, reviewers: d.reviewers || [], certifiedBefore: d.certifiedBefore || [], rv: {}, rem: {} });
+  d.reviews.forEach(r => { (S.rv[r['Course ID']] = S.rv[r['Course ID']] || {})[r['Item ID']] = { rating: r.Rating, feedback: r.Feedback, sylTerm: r['Syllabus Term'], sylDate: r['Syllabus Updated'] }; });
+  d.remediation.forEach(m => (S.rem[m['Course ID']] = S.rem[m['Course ID']] || []).push(m));
+  setHeader(S.settings['Institution'], S.settings['Office Name'], S.term);
+  OB.load(); OB.applyToState(); if (OB.size()) OB.flush();
+  if (S.view === 'review' && courseById(S.cur)) renderReview(); else renderDash();
+}
+function merge(reply) {
+  const i = S.courses.findIndex(c => c['Course ID'] === reply.course['Course ID']);
+  if (i >= 0) S.courses[i] = reply.course;
+  S.rem[reply.course['Course ID']] = reply.remediation;
+}
+
+// ── dashboard ────────────────────────────────────────────────────────────────
+function visibleCourses() {
+  const f = S.f, q = f.q.trim().toLowerCase();
+  return S.courses.filter(c =>
+    (!f.stage || stageOf(c) === f.stage) &&
+    (!f.reviewer || (f.reviewer === '(unassigned)' ? !c.Reviewer : c.Reviewer === f.reviewer)) &&
+    (!f.program || c.Program === f.program) &&
+    (!q || [c['Course Number'], c['Course Title'], c.Instructor].join(' ').toLowerCase().includes(q))
+  ).sort((a, b) => (a.Priority || 'P2').localeCompare(b.Priority || 'P2') || a['Course Number'].localeCompare(b['Course Number']) || (a.Session || '').localeCompare(b.Session || ''));
+}
+function sbar(inner) {
+  return `<div class="sbar"><div class="av" style="background:${colorFor(S.user.name)}">${esc(initials(S.user.name))}</div>
+    <div><div class="who">${esc(S.user.name)}</div><div class="small muted">${isSup() ? 'Supervisor' : 'Reviewer'}</div></div>
+    <div class="right">${inner}</div></div>`;
+}
+function renderDash() {
+  S.view = 'dash'; S.cur = '';
+  const sup = isSup(), all = S.courses, byStage = {}; STAGES.forEach(s => byStage[s] = 0); all.forEach(c => byStage[stageOf(c)]++);
+  const od = all.reduce((n, c) => n + overdue(c).length, 0);
+  const termSel = sup && S.terms.length > 1
+    ? `<select data-ch="term" aria-label="Term">${S.terms.map(t => `<option${t === S.term ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`
+    : `<b>${esc(S.term)}</b>`;
+  let h = sbar(`${termSel} ${saveChip()}
+    ${sup ? `<button class="btn p sm" data-act="import">Import courses</button><button class="btn sm" data-act="settings">Settings</button>` : ''}
+    <button class="btn sm" data-act="exportXlsx" ${all.length ? '' : 'disabled'}>Export Excel</button>
+    <button class="btn sm" data-act="exportAllPdf" ${all.some(submitted) ? '' : 'disabled'}>Export PDFs</button>
+    <button class="btn sm" data-act="refresh">Refresh</button><button class="btn sm" data-act="signOut">Sign out</button>`);
+
+  const noPin = S.reviewers.filter(r => r.active && !r.hasPin);
+  if (sup && noPin.length) h += `<div class="pad" style="padding-bottom:0"><div class="note err" style="margin-top:0">No PIN is set for ${noPin.map(r => esc(r.name)).join(', ')}. Type a 4-digit PIN in the Reviewers tab of the Sheet; until then they cannot sign in.</div></div>`;
+  const due = S.settings['Review Due Date'];
+  if (due && byStage['Assigned'] + byStage['In Review'] > 0) h += `<div class="pad" style="padding-bottom:0"><div class="note ${due < today() ? 'err' : 'info'}" style="margin-top:0">Reviews are due <b>${esc(due)}</b>. ${byStage['Assigned'] + byStage['In Review']} still to be submitted.</div></div>`;
+
+  if (!all.length) {
+    h += `<div class="empty"><h2>No courses for ${esc(S.term)} yet</h2><p style="margin-top:6px">${sup ? 'Import a course list to assign reviewers and begin the cycle.' : 'No courses are assigned to you for this term.'}</p>
+      ${sup ? '<p style="margin-top:14px"><button class="btn p" data-act="import">Import courses</button></p>' : ''}</div>`;
+    app().innerHTML = h; return;
+  }
+  h += `<div class="pipe">${STAGES.map((s, i) => `<button data-act="fStage" data-v="${esc(s)}" class="${S.f.stage === s ? 'on' : ''}" aria-pressed="${S.f.stage === s}">
+      <div class="n">${byStage[s]}</div><div class="l">${esc(s)}</div></button>`).join('')}</div>`;
+  if (od) h += `<div class="pad" style="padding-top:4px;padding-bottom:0"><span class="over">${od} remediation item${od > 1 ? 's are' : ' is'} past due.</span></div>`;
+
+  if (sup) {
+    const names = S.reviewers.filter(r => all.some(c => c.Reviewer === r.name) || (r.active && r.role === 'Reviewer')).map(r => r.name);
+    if (all.some(c => !c.Reviewer)) names.push('(unassigned)');
+    h += `<div class="rvgrid">${names.map(n => {
+      const cs = all.filter(c => n === '(unassigned)' ? !c.Reviewer : c.Reviewer === n);
+      const sub = cs.filter(submitted).length, cert = cs.filter(c => stageOf(c) === 'Certified').length, op = cs.reduce((k, c) => k + (submitted(c) ? openItems(c).length : 0), 0);
+      return `<button class="rvc ${S.f.reviewer === n ? 'on' : ''}" data-act="fReviewer" data-v="${esc(n)}" aria-pressed="${S.f.reviewer === n}">
+        <div class="nm" style="color:${n === '(unassigned)' ? 'var(--nm-tx)' : colorFor(n)}">${n === '(unassigned)' ? 'Unassigned' : esc(n)}</div>
+        <div class="bar"><i style="width:${cs.length ? Math.round(cert / cs.length * 100) : 0}%"></i></div>
+        <div class="small muted">${cs.length} assigned · ${sub} reviewed · ${cert} certified${op ? ` · ${op} open item${op > 1 ? 's' : ''}` : ''}</div></button>`;
+    }).join('')}</div>`;
+  }
+  const progs = [...new Set(all.map(c => c.Program).filter(Boolean))].sort();
+  h += `<div class="filters"><input type="search" placeholder="Search course or instructor" value="${esc(S.f.q)}" data-in="fq" aria-label="Search" style="min-width:220px">
+    ${progs.length > 1 ? `<select data-ch="fProgram" aria-label="Program"><option value="">All programs</option>${progs.map(p => `<option${S.f.program === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select>` : ''}
+    ${S.f.stage || S.f.reviewer || S.f.program || S.f.q ? `<button class="btn sm" data-act="fClear">Clear filters</button>` : ''}
+    <span class="small muted" id="shown"></span></div><div class="grid" id="grid"></div>`;
+  app().innerHTML = h; renderGrid();
+}
+function renderGrid() {
+  const list = visibleCourses(), g = $('#grid'); if (!g) return;
+  $('#shown').textContent = list.length + ' of ' + S.courses.length + ' courses';
+  g.innerHTML = list.length ? list.map(c => {
+    const st = stageOf(c), si = STAGES.indexOf(st), k = counts(c), op = openItems(c), od = overdue(c);
+    let line = '';
+    if (st === 'In Review') line = `${S.rubric.length - k.pend}/${S.rubric.length} rated`;
+    else if (submitted(c) && st !== 'Certified') line = `${op.length} open item${op.length === 1 ? '' : 's'}` + (od.length ? ` · <span class="over">${od.length} past due</span>` : '');
+    else if (st === 'Certified' && c.Override === 'APPROVED') line = 'Supervisor override';
+    return `<button class="cardc s${si}" data-act="open" data-id="${esc(c['Course ID'])}">
+      <div class="cn">${esc(c['Course Number'])}${c.Flag ? ' <span class="over" title="Flagged for follow-up">⚑</span>' : ''}</div>
+      ${c['Course Title'] ? `<div class="ct">${esc(c['Course Title'])}</div>` : ''}<div class="ci">${esc(c.Instructor)}</div>
+      <div class="meta"><span class="${c.Priority === 'P1' ? 'pri1' : c.Priority === 'P3' ? 'pri3' : ''}">${esc(c.Priority || 'P2')}</span>${c.Session ? ' · ' + esc(c.Session) : ''}${c.Program ? ' · ' + esc(c.Program) : ''}${isSup() ? ' · <b style="color:' + (c.Reviewer ? colorFor(c.Reviewer) : 'var(--nm-tx)') + '">' + esc(c.Reviewer || 'Unassigned') + '</b>' : ''}</div>
+      <div class="st"><span class="stg s${si}">${esc(st)}</span><span>${line}</span></div></button>`;
+  }).join('') : `<div class="empty" style="grid-column:1/-1">No courses match these filters.</div>`;
+}
+
+// ── review screen ────────────────────────────────────────────────────────────
+function sections() { const out = []; S.rubric.forEach((r, i) => { let s = out[out.length - 1]; if (!s || s.name !== r.section) out.push(s = { name: r.section, note: r.sectionNote, items: [] }); s.items.push({ r, n: i + 1 }); }); return out; }
+function renderReview() {
+  const c = courseById(S.cur); if (!c) return renderDash();
+  S.view = 'review';
+  const edit = canEdit(c), st = stageOf(c), si = STAGES.indexOf(st), k = counts(c), sup = isSup(), list = visibleCourses(), pos = list.indexOf(c);
+  let h = `<div class="sbar"><button class="btn sm o" data-act="back">← All courses</button>
+    <div><div class="who">${esc(c['Course Number'])}${c['Course Title'] ? ' — ' + esc(c['Course Title']) : ''}</div><div class="small muted">${esc(c.Instructor)}</div></div>
+    <div class="right">${saveChip()}
+      ${pos > 0 ? `<button class="btn sm" data-act="open" data-id="${esc(list[pos - 1]['Course ID'])}">← Prev</button>` : ''}
+      ${pos >= 0 && pos < list.length - 1 ? `<button class="btn sm" data-act="open" data-id="${esc(list[pos + 1]['Course ID'])}">Next →</button>` : ''}</div></div>
+  <div class="pills"><span class="stg s${si}">${esc(st)}</span>
+    ${[c.Program, c.College, c.Credits, c.Session, c['Course Status'], priLabel(c.Priority), c.Reviewer ? 'Reviewer: ' + c.Reviewer : 'Unassigned'].filter(Boolean).map(x => `<span class="pill">${esc(x)}</span>`).join('')}
+    ${c.Flag ? '<span class="pill warn">⚑ Flagged for follow-up</span>' : ''}${c.Override ? `<span class="pill warn">Supervisor override: ${esc(c.Override)}</span>` : ''}
+    ${c['Pre-Flags'] ? `<span class="pill warn">Instructor self-report — not confirmed: ${esc(c['Pre-Flags'])}</span>` : ''}</div>`;
+
+  if (submitted(c)) h += outcomePanel(c);
+  if (!mine(c)) h += `<div class="pad" style="padding-bottom:0"><div class="note info" style="margin-top:0">This course is assigned to another reviewer. You can view it but not change it.</div></div>`;
+  h += `<div class="pad" style="padding-top:4px"><div class="note err" id="val" style="display:none"></div>`;
+  sections().forEach(sec => {
+    h += `<div class="sec">${esc(sec.name)}</div>${sec.note ? `<div class="secnote">${esc(sec.note)}</div>` : ''}`;
+    sec.items.forEach(({ r, n }) => {
+      const v = item(c, r.id), cls = v.rating || (edit ? 'need' : '');
+      h += `<div class="ri ${cls}" id="ri-${esc(r.id)}"><div class="rih"><div class="num">${n}</div>
+        <div class="rtx"><b>${esc(r.criterion)}</b><div class="g">${esc(r.guidance)}</div>
+          ${r.syllabusFields ? (edit ? `<div class="syl"><div><label class="f" for="st-${esc(r.id)}">Semester / term on syllabus</label><input type="text" id="st-${esc(r.id)}" data-in="sylTerm" data-item="${esc(r.id)}" value="${esc(v.sylTerm)}" placeholder="e.g. ${esc(S.term)}"></div>
+            <div><label class="f" for="sd-${esc(r.id)}">Date last updated</label><input type="date" id="sd-${esc(r.id)}" data-in="sylDate" data-item="${esc(r.id)}" value="${esc(v.sylDate)}"></div></div>`
+            : (v.sylTerm || v.sylDate ? `<div class="g">Syllabus term: ${esc(v.sylTerm || '—')} · Last updated: ${esc(v.sylDate || '—')}</div>` : '')) : ''}</div>
+        ${edit ? `<div class="rg" role="radiogroup" aria-label="Rating for item ${n}">${['met', 'nm', 'na'].map(x => `<label class="${x}"><input type="radio" name="r-${esc(r.id)}" value="${x}" data-ch="rate" data-item="${esc(r.id)}"${v.rating === x ? ' checked' : ''}>${RLABEL[x]}</label>`).join('')}</div>`
+               : `<span class="rated ${v.rating}">${RLABEL[v.rating] || 'Not rated'}</span>`}</div>
+        ${edit ? `<div class="fb" id="fb-${esc(r.id)}"${v.rating === 'nm' || v.rating === 'met' ? '' : ' hidden'}><label class="small muted" for="ft-${esc(r.id)}" id="fl-${esc(r.id)}">${fbLabel(v.rating)}</label>
+            <textarea id="ft-${esc(r.id)}" data-in="fb" data-item="${esc(r.id)}" placeholder="State the specific steps the instructor must take.">${esc(v.feedback)}</textarea></div>`
+               : (v.feedback ? `<div class="fb"><span class="small muted">${v.rating === 'nm' ? 'Recommendation' : 'Comment'}:</span> ${esc(v.feedback)}</div>` : '')}</div>`;
+    });
+  });
+  h += `</div>`;
+  if (edit) h += `<div class="sum"><span class="chip met">Met: <b id="k-met">${k.met}</b></span><span class="chip nm">Not Met: <b id="k-nm">${k.nm}</b></span>
+      <span class="chip na">N/A: <b id="k-na">${k.na}</b></span><span class="chip pe">Unrated: <b id="k-pend">${k.pend}</b></span>
+      <span style="margin-left:auto;display:flex;gap:8px;align-items:center"><label class="small muted" for="rv-date">Review date</label><input type="date" id="rv-date" value="${today()}">
+      <button class="btn g" data-act="submit">Submit review</button></span></div>`;
+  if (sup) h += supPanel(c);
+  app().innerHTML = h; window.scrollTo(0, 0);
+}
+const fbLabel = r => r === 'nm' ? 'Recommendation for the instructor (required for Not Met)' : 'Comment (optional)';
+function outcomePanel(c) {
+  const st = stageOf(c), rem = remOf(c), cert = st === 'Certified', me = mine(c);
+  let h = `<div class="panel"><h3>Outcome and follow-up</h3><div class="body">
+    <div class="note ${cert ? 'ok' : 'err'}" style="margin-top:0"><b>${cert ? 'CERTIFIED' : 'ACTION REQUIRED'}</b> · Reviewed ${esc(c['Review Date'])}${c['Certified Date'] ? ' · Certified ' + esc(c['Certified Date']) : ''}
+      ${cert && c.Override === 'APPROVED' && openItems(c).length ? ' · by supervisor override with ' + openItems(c).length + ' item(s) still open' : ''}</div>`;
+  if (rem.length) {
+    h += `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0">${c['Feedback Sent']
+        ? `<span><b>Feedback sent to instructor:</b> ${esc(c['Feedback Sent'])}</span>${me ? '<button class="btn sm" data-act="fbClear">Clear</button>' : ''}`
+        : (me ? `<label class="small muted" for="fb-date">Feedback sent to instructor on</label><input type="date" id="fb-date" value="${today()}"><button class="btn p sm" data-act="fbSent">Record feedback sent</button>` : '<span class="muted">Feedback not yet sent to instructor.</span>')}</div>
+      <div class="small muted" style="margin-bottom:6px">Record below whether the instructor has completed each required action. The course is certified when every item is completed.</div>`;
+    rem.forEach(m => {
+      const done = m.Status === 'Completed', n = S.rubric.findIndex(r => r.id === m['Item ID']) + 1, late = !done && m['Due Date'] && m['Due Date'] < today();
+      h += `<div class="rem ${done ? 'done' : ''}"><div class="top"><div style="flex:1;min-width:220px"><b>${n ? 'Item ' + n + ': ' : ''}${esc(m.Criterion)}</b>
+          <div style="margin-top:3px"><span class="muted">Required action:</span> ${esc(m['Required Action'])}</div></div>
+          <div class="small" style="text-align:right">${done ? `<b style="color:var(--met-tx)">Completed</b><br>${esc(m['Closed By'])} · ${esc(m['Closed Date'])}` : `<b class="${late ? 'over' : ''}">Open${late ? ' — past due' : ''}</b><br>Due ${esc(m['Due Date'] || '—')}`}</div></div>
+        ${me ? `<label class="small muted" for="rn-${esc(m['Item ID'])}" style="display:block;margin-top:6px">Coordinator note</label><textarea id="rn-${esc(m['Item ID'])}" placeholder="What was verified, and where.">${esc(m['Coordinator Note'])}</textarea>
+          <div class="acts">${done ? `<button class="btn sm" data-act="remOpen" data-item="${esc(m['Item ID'])}">Reopen item</button>` : `<button class="btn g sm" data-act="remDone" data-item="${esc(m['Item ID'])}">Mark completed</button>
+            <label class="small muted" for="rd-${esc(m['Item ID'])}">Due</label><input type="date" id="rd-${esc(m['Item ID'])}" value="${esc(m['Due Date'])}">`}
+            <button class="btn sm" data-act="remNote" data-item="${esc(m['Item ID'])}">Save note${done ? '' : ' and due date'}</button></div>`
+           : (m['Coordinator Note'] ? `<div class="small" style="margin-top:6px"><span class="muted">Coordinator note:</span> ${esc(m['Coordinator Note'])}</div>` : '')}</div>`;
+    });
+  }
+  const canReopen = isSup() || (c.Reviewer === S.user.name && st === 'Action Required');
+  h += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn p sm" data-act="pdf">Export feedback report (PDF)</button>
+    ${canReopen ? '<button class="btn sm" data-act="reopen">Reopen review to change ratings</button>' : ''}</div></div></div>`;
+  return h;
+}
+function supPanel(c) {
+  const revs = S.reviewers.filter(r => r.active);
+  return `<div class="panel"><h3>Supervisor actions</h3><div class="body supbar">
+    <div><label class="f" for="sp-rev">Reviewer</label><select id="sp-rev" data-ch="spField" data-k="Reviewer"><option value="">Unassigned</option>${revs.map(r => `<option${c.Reviewer === r.name ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select></div>
+    <div><label class="f" for="sp-pri">Priority</label><select id="sp-pri" data-ch="spField" data-k="Priority">${['P1', 'P2', 'P3'].map(p => `<option value="${p}"${(c.Priority || 'P2') === p ? ' selected' : ''}>${priLabel(p)}</option>`).join('')}</select></div>
+    <div><label class="f" for="sp-ov">Outcome override</label><select id="sp-ov" data-ch="spField" data-k="Override"${submitted(c) ? '' : ' disabled title="Available after the review is submitted"'}>
+      <option value="">None — follow the review</option><option value="APPROVED"${c.Override === 'APPROVED' ? ' selected' : ''}>Certify (APPROVED)</option><option value="ACTION REQUIRED"${c.Override === 'ACTION REQUIRED' ? ' selected' : ''}>Hold (ACTION REQUIRED)</option></select></div>
+    <button class="btn sm" data-act="flag">${c.Flag ? 'Remove flag' : '⚑ Flag for follow-up'}</button>
+    ${counts(c).pend === S.rubric.length && !submitted(c) ? '<button class="btn sm o" data-act="remove">Remove course</button>' : ''}
+    <div style="flex-basis:100%"><label class="f" for="sp-notes">Supervisor notes</label><div style="display:flex;gap:8px"><input type="text" id="sp-notes" value="${esc(c.Notes)}" style="flex:1"><button class="btn sm" data-act="saveNotes">Save</button></div></div>
+  </div></div>`;
+}
+function updateItemDom(c, id) {
+  const v = item(c, id), ri = $('#ri-' + CSS.escape(id)); if (!ri) return;
+  ri.className = 'ri ' + (v.rating || 'need');
+  const fb = $('#fb-' + CSS.escape(id)); fb.hidden = !(v.rating === 'nm' || v.rating === 'met');
+  $('#fl-' + CSS.escape(id)).textContent = fbLabel(v.rating);
+  const k = counts(c); ['met', 'nm', 'na', 'pend'].forEach(x => { const e = $('#k-' + x); if (e) e.textContent = k[x]; });
+}
+function validate(c) {
+  const un = [], nf = [];
+  S.rubric.forEach((r, i) => { const v = item(c, r.id); if (!v.rating) un.push({ n: i + 1, id: r.id }); else if (v.rating === 'nm' && !v.feedback.trim()) nf.push({ n: i + 1, id: r.id }); });
+  const box = $('#val');
+  if (!un.length && !nf.length) { box.style.display = 'none'; return true; }
+  box.textContent = un.length ? `Not yet rated: item${un.length > 1 ? 's' : ''} ${un.map(x => x.n).join(', ')}. Mark each Met, Not Met, or N/A.` : `A recommendation is required for each Not Met item: ${nf.map(x => x.n).join(', ')}.`;
+  box.style.display = 'block';
+  const first = (un[0] || nf[0]).id; const el = $('#ri-' + CSS.escape(first)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return false;
+}
+
+// ── actions ──────────────────────────────────────────────────────────────────
+const cur = () => courseById(S.cur);
+async function act(action, payload) { merge(await api(action, Object.assign({ courseId: S.cur }, payload))); renderReview(); }
+const ACT = {
+  retryLogin: () => showLogin(), signOut: () => { if (OB.size() && !confirm('Some changes have not been saved yet. Sign out anyway?')) return; signOut(); },
+  refresh: async () => { await OB.flush(); await load(S.term); toast('Up to date.'); },
+  open: el => { S.cur = el.dataset.id; renderReview(); }, back: () => renderDash(),
+  fStage: el => { S.f.stage = S.f.stage === el.dataset.v ? '' : el.dataset.v; renderDash(); },
+  fReviewer: el => { S.f.reviewer = S.f.reviewer === el.dataset.v ? '' : el.dataset.v; renderDash(); },
+  fClear: () => { S.f = { stage: '', reviewer: '', program: '', q: '' }; renderDash(); },
+  submit: async () => {
+    const c = cur(); if (!validate(c)) return;
+    const k = counts(c);
+    if (!confirm(k.nm ? `Submit this review with ${k.nm} Not Met item${k.nm > 1 ? 's' : ''}? Ratings will lock and a follow-up item will open for each one.` : 'Submit this review? All items are Met or N/A, so the course will be certified.')) return;
+    if (!(await OB.flush())) throw new Error('Your latest ratings could not be saved. Check your connection and submit again.');
+    await act('submitReview', { reviewDate: $('#rv-date').value });
+    toast(stageOf(cur()) === 'Certified' ? 'Review submitted. Course certified.' : 'Review submitted. Follow-up items opened.');
+  },
+  reopen: async () => { if (confirm('Reopen this review? Ratings unlock and the course returns to In Review until it is submitted again.')) await act('reopenReview'); },
+  fbSent: async () => act('markFeedbackSent', { date: $('#fb-date').value || today() }),
+  fbClear: async () => act('markFeedbackSent', { date: '' }),
+  remDone: async el => { await act('updateRemediation', { itemId: el.dataset.item, status: 'Completed', note: $('#rn-' + CSS.escape(el.dataset.item)).value }); if (stageOf(cur()) === 'Certified') toast('All items completed. Course certified.'); },
+  remOpen: async el => act('updateRemediation', { itemId: el.dataset.item, status: 'Open', note: $('#rn-' + CSS.escape(el.dataset.item)).value }),
+  remNote: async el => { const id = el.dataset.item, m = remOf(cur()).find(x => x['Item ID'] === id), d = $('#rd-' + CSS.escape(id)); await act('updateRemediation', { itemId: id, status: m.Status, note: $('#rn-' + CSS.escape(id)).value, dueDate: d ? d.value : undefined }); toast('Saved.'); },
+  flag: async () => act('updateCourse', { fields: { Flag: cur().Flag ? '' : 'Yes' } }),
+  saveNotes: async () => { await act('updateCourse', { fields: { Notes: $('#sp-notes').value } }); toast('Notes saved.'); },
+  remove: async () => { const c = cur(); if (!confirm(`Remove ${c['Course Number']} from ${S.term}?`)) return; await api('deleteCourse', { courseId: S.cur }); S.courses = S.courses.filter(x => x !== c); renderDash(); toast('Course removed.'); },
+  pdf: () => exportPdf([cur()]), exportAllPdf: () => exportPdf(visibleCourses().filter(submitted)), exportXlsx: () => exportXlsx(),
+  import: () => renderImport(), imCancel: () => renderDash(), imRun: () => runImport(), imTemplate: () => downloadTemplate(),
+  settings: () => showSettings(), stClose: () => { $('#modal').innerHTML = ''; }, stSave: () => saveSettings()
+};
+const CH = {
+  rate: el => { const c = cur(); item(c, el.dataset.item).rating = el.value; OB.put(S.cur, el.dataset.item); updateItemDom(c, el.dataset.item); if ($('#val').style.display !== 'none') $('#val').style.display = 'none'; },
+  term: async el => { await OB.flush(); S.f = { stage: '', reviewer: '', program: '', q: '' }; await load(el.value); },
+  fProgram: el => { S.f.program = el.value; renderDash(); },
+  spField: async el => { const c = cur(), k = el.dataset.k; if (k === 'Reviewer' && submitted(c) && !confirm('This review is already submitted. Reassign it anyway? The new reviewer will take over the follow-up.')) { el.value = c.Reviewer; return; } await act('updateCourse', { fields: { [k]: el.value } }); toast('Updated.'); },
+  imFile: el => readImportFile(el.files[0]), imSheet: el => { IM.sheet = el.value; loadSheet(); }, imMap: el => { IM.map[el.dataset.k] = el.value; buildItems(); renderImportBody(); },
+  imMode: el => { IM.mode = el.value; assignAll(); renderImportBody(); }, imRev: el => { IM.items[+el.dataset.i].Reviewer = el.value; IM.items[+el.dataset.i].manual = true; }
+};
+const IN = {
+  fb: el => { item(cur(), el.dataset.item).feedback = el.value; OB.put(S.cur, el.dataset.item); },
+  sylTerm: el => { item(cur(), el.dataset.item).sylTerm = el.value; OB.put(S.cur, el.dataset.item); },
+  sylDate: el => { item(cur(), el.dataset.item).sylDate = el.value; OB.put(S.cur, el.dataset.item); },
+  fq: el => { S.f.q = el.value; renderGrid(); }
+};
+async function run(fn, el) {
+  const btn = el && el.tagName === 'BUTTON' ? el : null; if (btn) btn.disabled = true;
+  try { await fn(el); } catch (e) { toast(e.message || String(e), 6000); }
+  if (btn && document.body.contains(btn)) btn.disabled = false;
+}
+document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (el && !el.disabled && ACT[el.dataset.act]) run(ACT[el.dataset.act], el); });
+document.addEventListener('change', e => { const el = e.target.closest('[data-ch]'); if (el && CH[el.dataset.ch]) run(CH[el.dataset.ch], el); });
+document.addEventListener('input', e => { const el = e.target.closest('[data-in]'); if (el && IN[el.dataset.in]) IN[el.dataset.in](el); });
+
+// ── settings (supervisor) ────────────────────────────────────────────────────
+function showSettings() {
+  const s = S.settings;
+  $('#modal').innerHTML = `<div class="ov"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="st-h"><h2 id="st-h">Settings</h2>
+    <p class="muted small" style="margin-bottom:12px">To start a new cycle, change the current term and save, then import that term's course list. Earlier terms stay available from the term menu.</p>
+    <div class="fr"><label class="f" for="st-term">Current term</label><input type="text" id="st-term" value="${esc(s['Current Term'])}" placeholder="e.g. Spring 2027"></div>
+    <div class="fr"><label class="f" for="st-office">Office name</label><input type="text" id="st-office" value="${esc(s['Office Name'])}"></div>
+    <div class="fr"><label class="f" for="st-inst">Institution</label><input type="text" id="st-inst" value="${esc(s['Institution'])}"></div>
+    <div class="fr" style="display:flex;gap:10px"><div style="flex:1"><label class="f" for="st-due">Reviews due (optional)</label><input type="date" id="st-due" value="${esc(s['Review Due Date'])}"></div>
+      <div style="flex:1"><label class="f" for="st-days">Days allowed for revisions</label><input type="number" id="st-days" min="1" max="120" value="${esc(s['Revision Days'] || 14)}"></div></div>
+    <div class="note blue"><b>People:</b> ${S.reviewers.map(r => `${esc(r.name)} (${r.role === 'Supervisor' ? 'Supervisor' : esc(r.programs || 'no program')}${r.active ? '' : ', inactive'}${r.hasPin ? '' : ', no PIN'})`).join('; ')}.<br>
+      Names, PINs, and programs are edited in the <b>Reviewers</b> tab of the Sheet. Rubric wording is edited in the <b>Rubric</b> tab. Changes apply at the next sign-in or Refresh.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" data-act="stClose">Cancel</button><button class="btn p" data-act="stSave">Save</button></div></div></div>`;
+}
+async function saveSettings() {
+  const term = $('#st-term').value.trim(); if (!term) throw new Error('Enter the current term.');
+  await api('saveSettings', { settings: { 'Current Term': term, 'Office Name': $('#st-office').value, 'Institution': $('#st-inst').value, 'Review Due Date': $('#st-due').value, 'Revision Days': $('#st-days').value } });
+  $('#modal').innerHTML = ''; S.f = { stage: '', reviewer: '', program: '', q: '' }; await load(term); toast('Settings saved.');
+}
+
+// ── import (supervisor): Excel in, assigned courses out ──────────────────────
+const IM = { wb: null, sheet: '', headers: [], rows: [], map: {}, items: [], mode: 'mixed', flagCols: [] };
+const FIELDS = [['number', 'Course number (required)'], ['title', 'Course title'], ['instructor', 'Instructor (full name)'], ['first', 'Instructor first name'], ['last', 'Instructor last name'],
+  ['email', 'Instructor email'], ['program', 'Program'], ['college', 'College / school'], ['credits', 'Credit hours'], ['session', 'Session (Term 1 / Term 2)'], ['status', 'Course status'], ['priority', 'Priority']];
+const GUESS = { number: [/course\s*(number|no\.?|#|links?|code|id)\b/i, /^course$/i], title: [/course\s*title/i, /^title$/i], first: [/first\s*name/i], last: [/last\s*name/i],
+  instructor: [/^(teacher|instructor|sme)s?\b(?!\s*presence)/i, /^(faculty\s*)?name$/i], email: [/e-?mail/i], program: [/^program/i], college: [/college|school/i], credits: [/credit/i],
+  session: [/^term$/i, /session/i], status: [/course\s*status/i, /^status$/i], priority: [/priority/i] };
+const tidy = v => String(v == null ? '' : v).replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+function renderImport() {
+  S.view = 'import'; Object.assign(IM, { wb: null, sheet: '', headers: [], rows: [], map: {}, items: [], mode: 'mixed', flagCols: [] });
+  app().innerHTML = `<div class="sbar"><button class="btn sm o" data-act="imCancel">← All courses</button><div class="who">Import courses into ${esc(S.term)}</div></div>
+    <div class="pad"><p>Choose the course list as an Excel or CSV file. Any column layout is accepted; you confirm which column is which before anything is saved. Courses already in the portal keep their reviewer and their progress.</p>
+    <p style="margin:12px 0"><input type="file" accept=".xlsx,.xls,.csv" data-ch="imFile" aria-label="Course list file"> <button class="btn sm" data-act="imTemplate">Download blank template</button></p>
+    <div id="im-body"></div></div>`;
+}
+async function readImportFile(file) {
+  if (!file) return;
+  if (typeof XLSX === 'undefined') throw new Error('The spreadsheet reader has not finished loading. Wait a moment and choose the file again.');
+  IM.wb = XLSX.read(await file.arrayBuffer(), { type: 'array' }); IM.sheet = IM.wb.SheetNames[0]; loadSheet();
+}
+function loadSheet() {
+  const aoa = XLSX.utils.sheet_to_json(IM.wb.Sheets[IM.sheet], { header: 1, defval: '', raw: false, blankrows: false });
+  const hi = aoa.findIndex(r => r.filter(x => tidy(x)).length >= 2);
+  if (hi < 0) { IM.headers = []; IM.rows = []; IM.items = []; return renderImportBody(); }
+  IM.headers = aoa[hi].map(tidy);
+  IM.rows = aoa.slice(hi + 1).filter(r => r.some(x => tidy(x)));
+  IM.map = {}; const used = new Set();
+  const find = k => { for (const re of GUESS[k]) { const i = IM.headers.findIndex((h, j) => h && !used.has(j) && tidy(h.replace(/\(.*?\)/g, '')).length <= 42 && re.test(tidy(h.replace(/\(.*?\)/g, '')))); if (i >= 0) { used.add(i); return IM.headers[i]; } } return ''; };
+  ['number', 'title', 'first', 'last', 'email', 'program', 'college', 'credits', 'session', 'status', 'priority'].forEach(k => IM.map[k] = find(k));
+  IM.map.instructor = IM.map.first && IM.map.last ? '' : find('instructor');
+  buildItems(); renderImportBody();
+}
+function cleanNumber(raw) {
+  let s = tidy(raw).replace(/^sandbox[_\s-]*/i, '').replace(/[.\-_ ]?(\d{2}(FA|SP|SU|WI)\d?|(FA|SP|SU|WI)\d{2})(?![A-Za-z]).*$/i, '');
+  s = s.replace(/[._\s]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toUpperCase();
+  const m = s.match(/^([A-Z]{2,6})-?0*(\d{1,4})([A-Z]?)(?:-?DL-?(\d*))?$/);
+  return m ? { num: `${m[1]}-${m[2].padStart(4, '0')}${m[3]}-DL${m[4] || ''}`, ok: true } : { num: s, ok: false };
+}
+function cleanInstructor(raw) {
+  return String(raw || '').replace(/ /g, ' ').split(/[\r\n]+|\s+\/\s+|;\s*/).map(p => tidy(p).split(',')[0].trim()
+    .replace(/^[A-Z]{2}(?=(Dr\.?\s)?[A-Z][a-z])/, '').replace(/^(Dr|Prof|Mr|Mrs|Ms)\.?\s+/i, '').trim()).filter(Boolean).join(' / ');
+}
+function buildItems() {
+  const col = k => IM.map[k] ? IM.headers.indexOf(IM.map[k]) : -1, get = (r, k) => col(k) >= 0 ? r[col(k)] : '';
+  const mapped = new Set(Object.values(IM.map).filter(Boolean));
+  IM.flagCols = IM.headers.map((h, j) => ({ h, j })).filter(({ h, j }) => h && !mapped.has(h) && (() => {
+    const vals = IM.rows.map(r => tidy(r[j]).toLowerCase()).filter(Boolean);
+    return vals.length && vals.every(v => /^(yes|no|n\/a|not applicable)$/.test(v)) && vals.some(v => v === 'yes' || v === 'no');
+  })());
+  const seen = new Set(), existing = new Map(S.courses.map(c => [c['Course ID'], c]));
+  IM.items = [];
+  IM.rows.forEach((r, ri) => {
+    const rawNum = tidy(get(r, 'number')); if (!rawNum) return;
+    const cn = cleanNumber(rawNum), w = [];
+    if (!cn.ok) w.push('Check course number');
+    let ses = tidy(get(r, 'session')); const sm = ses.match(/term\s*([12])/i), lm = rawNum.match(/\d{2}(?:FA|SP|SU|WI)([12])(?![A-Za-z0-9])/i);
+    ses = sm ? 'Term ' + sm[1] : /^(spring|summer|fall|winter)\b/i.test(ses) ? '' : ses; if (!ses && lm) ses = 'Term ' + lm[1];
+    const inst = col('instructor') >= 0 ? cleanInstructor(get(r, 'instructor')) : tidy(tidy(get(r, 'first')) + ' ' + tidy(get(r, 'last')));
+    if (!inst) w.push('No instructor'); else if (inst.replace(/[^A-Za-z]/g, '').length < 4) w.push('Instructor name looks incomplete');
+    const college = tidy(get(r, 'college'));
+    let program = tidy(get(r, 'program')).toUpperCase();
+    if (!program && college) { const a = college.match(/\(([A-Z]{2,8})\)/) || college.match(/^([A-Z]{2,8})\s*-/); program = a ? a[1] : ''; }
+    const status = tidy(get(r, 'status')), pv = tidy(get(r, 'priority'));
+    const priority = pv ? (/1|new/i.test(pv) ? 'P1' : /3/.test(pv) ? 'P3' : 'P2') : /new/i.test(status) ? 'P1' : S.certifiedBefore.includes(cn.num) ? 'P3' : 'P2';
+    const flags = IM.flagCols.filter(({ j }) => tidy(r[j]).toLowerCase() === 'no').map(({ h }) => { const p = h.replace(/:\s*$/, '').split(/:\s+/); return tidy(p[p.length - 1]).slice(0, 70); });
+    const id = [S.term, cn.num, ses].filter(Boolean).join(' | ');
+    if (seen.has(id)) return void IM.items.push({ skip: true, 'Course Number': cn.num, Session: ses, Instructor: inst, w: ['Duplicate row in file — skipped'] });
+    seen.add(id);
+    const ex = existing.get(id);
+    IM.items.push({ id, exists: !!ex, Term: S.term, Session: ses, 'Course Number': cn.num, 'Course Title': tidy(get(r, 'title')), Instructor: inst, 'Instructor Email': tidy(get(r, 'email')),
+      Program: program, College: college, Credits: tidy(get(r, 'credits')), 'Course Status': status, Priority: priority, 'Pre-Flags': flags.join('; '), Reviewer: ex ? ex.Reviewer : '', w });
+  });
+  assignAll();
+}
+function assignAll() {
+  const revs = S.reviewers.filter(r => r.active && r.role === 'Reviewer');
+  const load = {}, pl = {}; revs.forEach(r => { load[r.name] = S.courses.filter(c => c.Reviewer === r.name).length; pl[r.name] = {}; });
+  const own = (r, it) => r.instructorName && it.Instructor.toLowerCase().includes(r.instructorName.toLowerCase());
+  const least = (list, it) => list.slice().sort((a, b) => (pl[a.name][it.Priority] || 0) - (pl[b.name][it.Priority] || 0) || load[a.name] - load[b.name])[0];
+  IM.items.filter(it => !it.skip && !(it.exists && it.Reviewer)).sort((a, b) => a.Priority.localeCompare(b.Priority)).forEach(it => {
+    it.w = it.w.filter(x => !/own course|No reviewer covers/.test(x)); it.manual = false;
+    const match = revs.filter(r => it.Program && r.programs.toUpperCase().split(/[,;\s]+/).includes(it.Program));
+    let pick = null;
+    if (IM.mode !== 'balance' && match.length) { pick = least(match.filter(r => !own(r, it)), it); if (!pick) it.w.push(IM.mode === 'program' ? 'Reviewer\'s own course — assign manually' : 'Reviewer\'s own course — assigned to another reviewer'); }
+    if (!pick && (IM.mode === 'balance' || (IM.mode === 'mixed'))) pick = least(revs.filter(r => !own(r, it)), it);
+    if (!pick && IM.mode === 'program' && !match.length) it.w.push('No reviewer covers ' + (it.Program || 'this program'));
+    it.Reviewer = pick ? pick.name : '';
+    if (pick) { load[pick.name]++; pl[pick.name][it.Priority] = (pl[pick.name][it.Priority] || 0) + 1; }
+  });
+}
+function renderImportBody() {
+  const b = $('#im-body'); if (!b) return;
+  if (!IM.headers.length) { b.innerHTML = `<div class="note err">No column headings were found in this sheet.</div>`; return; }
+  const live = IM.items.filter(i => !i.skip), fresh = live.filter(i => !i.exists), revs = S.reviewers.filter(r => r.active);
+  const tally = {}; live.forEach(i => { const k = i.Reviewer || 'Unassigned'; tally[k] = (tally[k] || 0) + 1; });
+  b.innerHTML = `${IM.wb.SheetNames.length > 1 ? `<p style="margin-bottom:8px"><label class="f" for="im-sheet">Worksheet</label><select id="im-sheet" data-ch="imSheet">${IM.wb.SheetNames.map(n => `<option${n === IM.sheet ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></p>` : ''}
+    <h2 style="margin-top:6px">1. Confirm the columns</h2><p class="small muted">Matched automatically from your headings. Change any that are wrong.</p>
+    <div class="maps">${FIELDS.map(([k, l]) => `<div><label class="f" for="im-${k}">${l}</label><select id="im-${k}" data-ch="imMap" data-k="${k}"><option value="">(not in file)</option>${IM.headers.filter(Boolean).map(h => `<option value="${esc(h)}"${IM.map[k] === h ? ' selected' : ''}>${esc(h.length > 46 ? h.slice(0, 44) + '…' : h)}</option>`).join('')}</select></div>`).join('')}</div>
+    ${IM.flagCols.length ? `<p class="small muted">${IM.flagCols.length} Yes/No self-report column${IM.flagCols.length > 1 ? 's' : ''} detected. Any "No" answer is shown to the reviewer as an item to check.</p>` : ''}
+    ${!IM.map.number ? '<div class="note err">Select the column that holds the course number.</div>' : `
+    <h2 style="margin-top:14px">2. Assign reviewers</h2>
+    <p style="margin:6px 0"><select data-ch="imMode" aria-label="Assignment rule">
+      <option value="mixed"${IM.mode === 'mixed' ? ' selected' : ''}>By program, then balance the rest evenly</option>
+      <option value="program"${IM.mode === 'program' ? ' selected' : ''}>By program only (leave the rest unassigned)</option>
+      <option value="balance"${IM.mode === 'balance' ? ' selected' : ''}>Balance all courses evenly, by priority</option></select>
+      <span class="small muted"> A reviewer is never assigned a course they teach. Adjust any row below.</span></p>
+    <p class="small"><b>${fresh.length}</b> new · <b>${live.length - fresh.length}</b> already in the portal · ${Object.keys(tally).map(k => `${esc(k)}: <b>${tally[k]}</b>`).join(' · ')}</p>
+    <div class="tw"><table><thead><tr><th>#</th><th>Course</th><th>Session</th><th>Title</th><th>Instructor</th><th>Program</th><th>Priority</th><th>Reviewer</th><th>Notes</th></tr></thead><tbody>
+    ${IM.items.map((it, i) => it.skip ? `<tr class="exists"><td>${i + 1}</td><td>${esc(it['Course Number'])}</td><td>${esc(it.Session)}</td><td></td><td>${esc(it.Instructor)}</td><td></td><td></td><td></td><td class="w">${esc(it.w.join('; '))}</td></tr>`
+      : `<tr class="${it.exists ? 'exists' : ''}"><td>${i + 1}</td><td><b>${esc(it['Course Number'])}</b></td><td>${esc(it.Session)}</td><td>${esc(it['Course Title'])}</td><td>${esc(it.Instructor)}</td><td>${esc(it.Program)}</td><td>${esc(it.Priority)}</td>
+        <td>${it.exists && it.Reviewer ? esc(it.Reviewer) : `<select data-ch="imRev" data-i="${i}" aria-label="Reviewer for ${esc(it['Course Number'])}"><option value="">Unassigned</option>${revs.map(r => `<option${it.Reviewer === r.name ? ' selected' : ''}>${esc(r.name)}</option>`).join('')}</select>`}</td>
+        <td class="w">${esc([it.exists ? 'Already in portal — progress kept' : '', ...it.w, it['Pre-Flags'] ? 'Self-report "No": ' + it['Pre-Flags'] : ''].filter(Boolean).join('; '))}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p style="margin-top:14px;display:flex;gap:8px"><button class="btn p" data-act="imRun" ${live.length ? '' : 'disabled'}>Import ${live.length} course${live.length === 1 ? '' : 's'} into ${esc(S.term)}</button><button class="btn" data-act="imCancel">Cancel</button></p>`}`;
+}
+async function runImport() {
+  const rows = IM.items.filter(i => !i.skip).map(i => ({ Term: i.Term, Session: i.Session, 'Course Number': i['Course Number'], 'Course Title': i['Course Title'], Instructor: i.Instructor,
+    'Instructor Email': i['Instructor Email'], Program: i.Program, College: i.College, Credits: i.Credits, 'Course Status': i['Course Status'], Priority: i.exists ? '' : i.Priority, 'Pre-Flags': i['Pre-Flags'], Reviewer: i.Reviewer }));
+  const r = await api('importCourses', { rows }); S.view = 'dash'; await load(S.term);
+  toast(`${r.added} course${r.added === 1 ? '' : 's'} added, ${r.updated} already present.`, 5000);
+}
+function downloadTemplate() {
+  const ws = XLSX.utils.aoa_to_sheet([['Course Number', 'Course Title', 'Instructor', 'Instructor Email', 'Program', 'College', 'Credit Hours', 'Session', 'Course Status'],
+    ['SOWK-0500-DL', 'Example Course Title', 'First Last', 'name@tuskegee.edu', 'SOWK', 'College of Arts and Sciences (CAS)', '3', 'Term 1', 'Previously Certified Course']]);
+  ws['!cols'] = [18, 30, 22, 26, 10, 34, 12, 10, 28].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Courses'); XLSX.writeFile(wb, 'DL_Course_Review_Import_Template.xlsx');
+}
+
+// ── exports ──────────────────────────────────────────────────────────────────
+function exportXlsx() {
+  if (typeof XLSX === 'undefined') throw new Error('The spreadsheet library has not finished loading. Try again in a moment.');
+  const list = visibleCourses(), wb = XLSX.utils.book_new();
+  const a = [['Course Number', 'Session', 'Course Title', 'Instructor', 'Program', 'Priority', 'Reviewer', 'Stage', 'Review Date', 'Feedback Sent', 'Certified Date', 'Met', 'Not Met', 'N/A', 'Unrated', 'Open Items', 'Past Due', 'Flag', 'Override', 'Notes']];
+  list.forEach(c => { const k = counts(c); a.push([c['Course Number'], c.Session, c['Course Title'], c.Instructor, c.Program, c.Priority, c.Reviewer, stageOf(c), c['Review Date'], c['Feedback Sent'], c['Certified Date'], k.met, k.nm, k.na, k.pend, submitted(c) ? openItems(c).length : '', overdue(c).length || '', c.Flag, c.Override, c.Notes]); });
+  const b = [['Course Number', 'Session', 'Instructor', 'Reviewer', 'Item', 'Criterion', 'Required Action', 'Due Date', 'Status', 'Coordinator Note', 'Closed By', 'Closed Date']];
+  list.forEach(c => remOf(c).forEach(m => b.push([c['Course Number'], c.Session, c.Instructor, c.Reviewer, S.rubric.findIndex(r => r.id === m['Item ID']) + 1 || '', m.Criterion, m['Required Action'], m['Due Date'], m.Status, m['Coordinator Note'], m['Closed By'], m['Closed Date']])));
+  const d = [['Course Number', 'Session', 'Item', 'Section', 'Criterion', 'Rating', 'Feedback']];
+  list.forEach(c => S.rubric.forEach((r, i) => { const v = item(c, r.id); d.push([c['Course Number'], c.Session, i + 1, r.section, r.criterion, RLABEL[v.rating] || '', v.feedback]); }));
+  [['Courses', a], ['Remediation', b], ['Ratings', d]].forEach(([n, rows]) => { const ws = XLSX.utils.aoa_to_sheet(rows); ws['!cols'] = rows[0].map(h => ({ wch: Math.max(12, Math.min(48, h.length + 8)) })); XLSX.utils.book_append_sheet(wb, ws, n); });
+  XLSX.writeFile(wb, `DL_Course_Reviews_${S.term.replace(/\s+/g, '_')}_${today()}.xlsx`);
+}
+const pdfSafe = s => String(s == null ? '' : s).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x09\x0A\x20-\x7E\xA0-\xFF–—•]/g, '');
+function exportPdf(list) {
+  if (!window.jspdf) throw new Error('The PDF library has not finished loading. Try again in a moment.');
+  if (!list.length) throw new Error('No submitted reviews to export.');
+  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter' });
+  list.forEach((c, i) => { if (i) doc.addPage(); drawCourse(doc, c); });
+  const n = doc.getNumberOfPages(); for (let p = 1; p <= n; p++) { doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(130, 130, 130);
+    doc.text(pdfSafe(`${S.settings['Institution'] || ''} — ${S.settings['Office Name'] || ''} · ${S.term}`), 40, 770); doc.text(`Page ${p} of ${n}`, 572, 770, { align: 'right' }); }
+  doc.save(list.length === 1 ? `DL_Review_${list[0]['Course Number']}_${S.term.replace(/\s+/g, '_')}.pdf` : `DL_Reviews_${S.term.replace(/\s+/g, '_')}_${list.length}_courses.pdf`);
+}
+function drawCourse(doc, c) {
+  const W = 612, L = 40, CW = W - 80, BOT = 745; let y;
+  const T = (s, x, yy, o) => doc.text(typeof s === 'string' ? pdfSafe(s) : s.map(pdfSafe), x, yy, o);
+  const wrap = (s, w) => doc.splitTextToSize(pdfSafe(s), w);
+  const room = h => { if (y + h > BOT) { doc.addPage(); y = 44; } };
+  doc.setFillColor(123, 7, 7); doc.rect(0, 0, W, 56, 'F'); doc.setFillColor(242, 189, 44); doc.rect(0, 56, W, 4, 'F');
+  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(14); T('Distance Learning Course Review Report', L, 27);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); T(`${S.settings['Institution'] || ''} · ${S.settings['Office Name'] || ''} · ${S.term}`, L, 44);
+  y = 78;
+  const st = stageOf(c), k = counts(c), syl = item(c, (S.rubric.find(r => r.syllabusFields) || {}).id || '_');
+  const meta = [['Course', c['Course Number'] + (c['Course Title'] ? ' — ' + c['Course Title'] : '')], ['Instructor', c.Instructor], ['Program / College', [c.Program, c.College].filter(Boolean).join(' · ')],
+    ['Session', c.Session], ['Reviewer', c.Reviewer], ['Review date', c['Review Date']], ['Status', st + (c['Certified Date'] ? ' (' + c['Certified Date'] + ')' : '')],
+    ['Syllabus', [syl.sylTerm && 'Term shown: ' + syl.sylTerm, syl.sylDate && 'Last updated: ' + syl.sylDate].filter(Boolean).join(' · ')],
+    ['Supervisor override', c.Override]].filter(m => m[1]);
+  doc.setFillColor(247, 247, 247); doc.rect(L, y, CW, meta.length * 16 + 10, 'F'); y += 15;
+  meta.forEach(([a, b]) => { doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(100, 100, 100); T(a, L + 8, y); doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(26, 26, 26); T(wrap(b, CW - 130)[0], L + 122, y); y += 16; });
+  y += 8;
+  const cert = st === 'Certified'; doc.setFillColor(...(cert ? [198, 239, 206] : [255, 199, 206])); doc.roundedRect(L, y, 150, 20, 4, 4, 'F');
+  doc.setTextColor(...(cert ? [39, 98, 33] : [156, 0, 6])); doc.setFont('helvetica', 'bold'); doc.setFontSize(9); T(cert ? 'CERTIFIED' : 'ACTION REQUIRED', L + 75, y + 13, { align: 'center' });
+  doc.setTextColor(60, 60, 60); doc.setFont('helvetica', 'normal'); T(`Met ${k.met}   ·   Not Met ${k.nm}   ·   N/A ${k.na}` + (remOf(c).length ? `   ·   Open follow-up items ${openItems(c).length}` : ''), L + 164, y + 13);
+  y += 34;
+  const col = { met: [[198, 239, 206], [39, 98, 33]], nm: [[255, 199, 206], [156, 0, 6]], na: [[255, 235, 156], [120, 53, 15]], '': [[230, 230, 230], [90, 90, 90]] };
+  sections().forEach(sec => {
+    room(40); doc.setFillColor(123, 7, 7); doc.rect(L, y, CW, 16, 'F'); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8); T(sec.name.toUpperCase(), L + 6, y + 11); y += 20;
+    sec.items.forEach(({ r, n }) => {
+      const v = item(c, r.id), m = remOf(c).find(x => x['Item ID'] === r.id);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); const lab = wrap(n + '.  ' + r.criterion, CW - 96);
+      doc.setFontSize(8); const fb = v.feedback ? wrap((v.rating === 'nm' ? 'Recommendation: ' : 'Comment: ') + v.feedback, CW - 30) : [];
+      const fu = m ? wrap(`Follow-up: ${m.Status === 'Completed' ? 'Completed — recorded by ' + m['Closed By'] + ' on ' + m['Closed Date'] : 'Open — due ' + (m['Due Date'] || 'n/a')}${m['Coordinator Note'] ? '. Note: ' + m['Coordinator Note'] : ''}`, CW - 30) : [];
+      const h = lab.length * 11 + 8 + (fb.length ? fb.length * 10 + 6 : 0) + (fu.length ? fu.length * 10 + 6 : 0);
+      room(h + 4);
+      doc.setDrawColor(215, 215, 215); doc.rect(L, y, CW, h);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(26, 26, 26); T(lab, L + 8, y + 12);
+      const [bg, fg] = col[v.rating || '']; doc.setFillColor(...bg); doc.roundedRect(L + CW - 76, y + 4, 68, 14, 3, 3, 'F'); doc.setTextColor(...fg); doc.setFont('helvetica', 'bold'); doc.setFontSize(8); T((RLABEL[v.rating] || 'Not rated').toUpperCase(), L + CW - 42, y + 14, { align: 'center' });
+      let yy = y + lab.length * 11 + 15; doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+      if (fb.length) { doc.setTextColor(v.rating === 'nm' ? 140 : 70, v.rating === 'nm' ? 20 : 70, v.rating === 'nm' ? 20 : 70); T(fb, L + 22, yy); yy += fb.length * 10 + 6; }
+      if (fu.length) { doc.setTextColor(...(m.Status === 'Completed' ? [39, 98, 33] : [15, 61, 110])); T(fu, L + 22, yy); }
+      y += h + 4;
+    });
+    y += 4;
+  });
+}
+
+boot();
+</script>
+</body>
+</html>
