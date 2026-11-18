@@ -98,6 +98,9 @@ label.f{display:block;font-size:10px;font-weight:700;text-transform:uppercase;le
 .rg label.met:has(input:checked){background:var(--met-bd);border-color:var(--met-bd);color:#fff}
 .rg label.nm:has(input:checked){background:var(--nm-bd);border-color:var(--nm-bd);color:#fff}
 .rg label.na:has(input:checked){background:var(--na-bd);border-color:var(--na-bd);color:#fff}
+.rg .clr{border:none;background:transparent;color:var(--txt2);text-decoration:underline;font-size:11px;font-weight:600;padding:6px 2px;cursor:pointer}
+.sumacts{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.sumacts .btn{white-space:nowrap}
+.rg .clr:hover{color:var(--cr)}.rg .clr:focus-visible{outline:2px solid var(--bl-bd);outline-offset:1px}
 .fb{padding:8px 14px 10px;background:var(--bg2);border-top:1px solid var(--border)}
 .fb textarea{width:100%;min-height:54px;resize:vertical;line-height:1.5;font-size:12px}
 .rated{font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;white-space:nowrap}
@@ -154,7 +157,7 @@ td.w{color:var(--nm-tx)}
    deployment between the quotes. Courses, reviewers, PINs, the rubric and the
    term all live in the Google Sheet, so this file never changes between terms.
    ════════════════════════════════════════════════════════════════════════════ */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxb376dDWsX2WjVblGKXwIWD0YRIAWzOZWDc3AJ_AjCGEwpSUHeCQ67GwMxn33_KKaM/exec';
+const SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const $ = s => document.querySelector(s);
@@ -424,7 +427,7 @@ function renderReview() {
           ${r.syllabusFields ? (edit ? `<div class="syl"><div><label class="f" for="st-${esc(r.id)}">Semester / term on syllabus</label><input type="text" id="st-${esc(r.id)}" data-in="sylTerm" data-item="${esc(r.id)}" value="${esc(v.sylTerm)}" placeholder="e.g. ${esc(S.term)}"></div>
             <div><label class="f" for="sd-${esc(r.id)}">Date last updated</label><input type="date" id="sd-${esc(r.id)}" data-in="sylDate" data-item="${esc(r.id)}" value="${esc(v.sylDate)}"></div></div>`
             : (v.sylTerm || v.sylDate ? `<div class="g">Syllabus term: ${esc(v.sylTerm || '—')} · Last updated: ${esc(v.sylDate || '—')}</div>` : '')) : ''}</div>
-        ${edit ? `<div class="rg" role="radiogroup" aria-label="Rating for item ${n}">${['met', 'nm', 'na'].map(x => `<label class="${x}"><input type="radio" name="r-${esc(r.id)}" value="${x}" data-ch="rate" data-item="${esc(r.id)}"${v.rating === x ? ' checked' : ''}>${RLABEL[x]}</label>`).join('')}</div>`
+        ${edit ? `<div class="rg" role="radiogroup" aria-label="Rating for item ${n}">${['met', 'nm', 'na'].map(x => `<label class="${x}"><input type="radio" name="r-${esc(r.id)}" value="${x}" data-ch="rate" data-item="${esc(r.id)}"${v.rating === x ? ' checked' : ''}>${RLABEL[x]}</label>`).join('')}<button type="button" class="clr" data-act="clearItem" data-item="${esc(r.id)}" aria-label="Clear rating for item ${n}"${v.rating ? '' : ' hidden'}>Clear</button></div>`
                : `<span class="rated ${v.rating}">${RLABEL[v.rating] || 'Not rated'}</span>`}</div>
         ${edit ? `<div class="fb" id="fb-${esc(r.id)}"${v.rating === 'nm' || v.rating === 'met' ? '' : ' hidden'}><label class="small muted" for="ft-${esc(r.id)}" id="fl-${esc(r.id)}">${fbLabel(v.rating)}</label>
             <textarea id="ft-${esc(r.id)}" data-in="fb" data-item="${esc(r.id)}" placeholder="State the specific steps the instructor must take.">${esc(v.feedback)}</textarea></div>`
@@ -434,7 +437,8 @@ function renderReview() {
   h += `</div>`;
   if (edit) h += `<div class="sum"><span class="chip met">Met: <b id="k-met">${k.met}</b></span><span class="chip nm">Not Met: <b id="k-nm">${k.nm}</b></span>
       <span class="chip na">N/A: <b id="k-na">${k.na}</b></span><span class="chip pe">Unrated: <b id="k-pend">${k.pend}</b></span>
-      <span style="margin-left:auto;display:flex;gap:8px;align-items:center"><label class="small muted" for="rv-date">Review date</label><input type="date" id="rv-date" value="${today()}">
+      <span class="sumacts"><label class="small muted" for="rv-date">Review date</label><input type="date" id="rv-date" value="${today()}">
+      <button class="btn sm" data-act="clearAll" id="clear-all"${k.pend === S.rubric.length ? ' disabled' : ''}>Clear all ratings</button>
       <button class="btn g" data-act="submit">Submit review</button></span></div>`;
   if (sup) h += supPanel(c);
   app().innerHTML = h; window.scrollTo(0, 0);
@@ -484,7 +488,10 @@ function updateItemDom(c, id) {
   ri.className = 'ri ' + (v.rating || 'need');
   const fb = $('#fb-' + CSS.escape(id)); fb.hidden = !(v.rating === 'nm' || v.rating === 'met');
   $('#fl-' + CSS.escape(id)).textContent = fbLabel(v.rating);
+  const cb = ri.querySelector('[data-act=clearItem]'); if (cb) cb.hidden = !v.rating;
+  if (!v.rating) ri.querySelectorAll('input[type=radio]').forEach(x => { x.checked = false; });
   const k = counts(c); ['met', 'nm', 'na', 'pend'].forEach(x => { const e = $('#k-' + x); if (e) e.textContent = k[x]; });
+  const ca = $('#clear-all'); if (ca) ca.disabled = k.pend === S.rubric.length;
 }
 function validate(c) {
   const un = [], nf = [];
@@ -524,6 +531,16 @@ const ACT = {
   flag: async () => act('updateCourse', { fields: { Flag: cur().Flag ? '' : 'Yes' } }),
   saveNotes: async () => { await act('updateCourse', { fields: { Notes: $('#sp-notes').value } }); toast('Notes saved.'); },
   remove: async () => { const c = cur(); if (!confirm(`Remove ${c['Course Number']} from ${S.term}?`)) return; await api('deleteCourse', { courseId: S.cur }); S.courses = S.courses.filter(x => x !== c); renderDash(); toast('Course removed.'); },
+  clearItem: el => {
+    const c = cur(), id = el.dataset.item; item(c, id).rating = ''; OB.put(S.cur, id); updateItemDom(c, id);
+    const first = document.querySelector(`#ri-${CSS.escape(id)} input[type=radio]`); if (first) first.focus();
+  },
+  clearAll: () => {
+    const c = cur();
+    if (!confirm('Clear every rating and comment on this course? The course returns to Assigned. This cannot be undone.')) return;
+    S.rubric.forEach(r => { Object.assign(item(c, r.id), { rating: '', feedback: '', sylTerm: '', sylDate: '' }); OB.put(S.cur, r.id); });
+    renderReview(); toast('All ratings cleared.');
+  },
   pdf: () => exportPdf([cur()]), exportAllPdf: () => exportPdf(visibleCourses().filter(submitted)), exportXlsx: () => exportXlsx(),
   import: () => renderImport(), imCancel: () => renderDash(), imRun: () => runImport(), imTemplate: () => downloadTemplate(),
   assign: () => renderAssign(), asBack: () => { if (asChanged().length && !confirm('Discard the unsaved assignment changes?')) return; renderDash(); },
